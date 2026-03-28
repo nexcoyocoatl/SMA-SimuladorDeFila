@@ -1,4 +1,3 @@
-#include <stddef.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -7,7 +6,7 @@
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
 #define QUEUE_CAPACITY 5                                // Capacidade máxima da fila
-#define MAX_NUM_RNG 10                             // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 1000000                             // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE};                // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada e Saída)
