@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
@@ -82,6 +83,14 @@ double calculate_draw(uint64_t min, uint64_t max)
         b_finished = true;
     }
     return min + ((max - min) * next_random());
+}
+
+void print_queue_state_probability_calc()
+{
+    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+    {
+        printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i]/current_time));
+    }
 }
 
 // Adiciona nova entrada no escalonador
@@ -241,11 +250,14 @@ int main(void)
         print_event_entry(&event_entries[i], i+1);
     }
 
-    printf("Scheduled Events:\n");
+    printf("\nScheduled Events:\n");
     for (uint64_t i = 0; i < total_scheduled_entries_count; i++)
     {
         print_scheduled_entry(&total_scheduled_entries[i], i+1);
     }
+
+    printf("\nProbabilities of each queue state:\n");
+    print_queue_state_probability_calc();
 
     return 0;
 }
