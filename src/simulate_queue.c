@@ -218,12 +218,12 @@ void print_scheduled_entry(scheduler_entry *entry, uint64_t index)
 int main(void)
 {
     // Cria uma primeira entrada no escalonador e envia na função de entrada na fila para início da simulação
-    add_to_scheduler(ARRIVAL, min_arrival, max_arrival);
+    scheduled_entries[0] = (scheduler_entry){.entry_type = ARRIVAL, .time = first_arrival, .draw = 0.0};
     arrival(&scheduled_entries[0], first_arrival);
 
     while (!b_finished)
     {
-        // Ordena entradas do escalonador por tempo, 
+        // Ordena entradas do escalonador por tempo
         qsort(scheduled_entries, sizeof(scheduler_entry), scheduled_entries_count, compare_entries_asc);
 
         scheduler_entry *entry = &scheduled_entries[0];
