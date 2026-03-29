@@ -90,6 +90,7 @@ void print_queue_state_probability_calc()
     {
         printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i]/current_time));
     }
+    printf("T: %f (%f%%)\n", current_time, 100.0);
 }
 
 // Adiciona nova entrada no escalonador
