@@ -5,8 +5,9 @@
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
+#define DEBUG 1                                         // Para ativar modo debug
 #define QUEUE_CAPACITY 5                                // Capacidade máxima da fila
-#define MAX_NUM_RNG 30                              // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 30  // (Mudar pro número correto)   // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE};                // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada e Saída)
@@ -93,10 +94,15 @@ void add_to_scheduler(enum EntryType type, double a, double b)
     double new_draw = calculate_draw(a,b);
 
     // TODO: ERRO NESSA PARTE (COMO?!)
-    printf("1 total_scheduled_entries_count %lu\n", total_scheduled_entries_count);
+    uint64_t temp = total_scheduled_entries_count; // Forma estúpida de "consertar"
+    if (DEBUG) { printf("1 total_scheduled_entries_count %lu\n", total_scheduled_entries_count); }
+
     // total_scheduled_count, exatamente no final de tudo, vai de 30 (MAX_QUEUE_STATE que eu setei pra teste) pra 2 (por que?!)
-    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = type, .draw = new_draw, .time = (current_time + new_draw), .b_removed = false};
-    printf("2 total_scheduled_entries_count %lu\n", total_scheduled_entries_count);
+    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.entry_type = type, .index = (total_scheduled_entries_count + 1), .draw = new_draw, .time = (current_time + new_draw), .b_removed = false};
+    if (DEBUG) { printf("2 total_scheduled_entries_count %lu\n", total_scheduled_entries_count); }
+
+    total_scheduled_entries_count = temp;           // Forma estúpida de "consertar"
+    if (DEBUG) { printf("3 total_scheduled_entries_count %lu\n", total_scheduled_entries_count); }
     // FIM DO ERRO
 
     current_scheduled_entries[current_scheduled_entries_count++] = &total_scheduled_entries[total_scheduled_entries_count++];
@@ -244,7 +250,7 @@ int main(void)
 {
     // Cria uma primeira entrada no escalonador e envia na função de entrada na fila para início da simulação
     // Esta primeira entrada no escalonador será logo descartada e sobreescrita, e por isso não incrementa o schedule_entries_count
-    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = ARRIVAL, .draw = first_arrival, .time = first_arrival, .b_removed=false};
+    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.entry_type = ARRIVAL, .index = (total_scheduled_entries_count + 1), .draw = first_arrival, .time = first_arrival, .b_removed=false};
     current_scheduled_entries[current_scheduled_entries_count] = &total_scheduled_entries[total_scheduled_entries_count++];
     arrival(current_scheduled_entries[0]);
 
