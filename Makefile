@@ -18,7 +18,7 @@ else
       BIN = simulate_queue
       fix_path = $1
       RM = rm -f
-	  EXEC = ./
+	   EXEC = ./
    endif
 endif
 
