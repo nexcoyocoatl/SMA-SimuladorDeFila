@@ -22,6 +22,7 @@ typedef struct {                                        // Struct de entradas da
     enum EntryType entry_type;                          // Tipo da entrada
     double time;                                        // Tempo em que o evento ocorre
     double draw;                                        // Sorteio do RNG
+    bool b_removed;                                       // Para indicar se já foi utilizado e removido
 } scheduler_entry;          
 
 const uint64_t num_servers = 1;                         // Número de atendentes
@@ -84,20 +85,11 @@ double calculate_draw(uint64_t min, uint64_t max)
     return min + ((max - min) * next_random());
 }
 
-void print_queue_state_probability_calc()
-{
-    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
-    {
-        printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i]/current_time));
-    }
-    printf("T: %f (%f%%)\n", current_time, 100.0);
-}
-
 // Adiciona nova entrada no escalonador
 void add_to_scheduler(enum EntryType type, double a, double b)
 {
     double new_draw = calculate_draw(a,b);
-    scheduled_entries[scheduled_entries_count] = (scheduler_entry){.entry_type = type, .draw = new_draw, .time = (current_time + new_draw)};
+    scheduled_entries[scheduled_entries_count] = (scheduler_entry){.entry_type = type, .draw = new_draw, .time = (current_time + new_draw), .b_removed = false};
     total_scheduled_entries[total_scheduled_entries_count++] = scheduled_entries[scheduled_entries_count++];
 }
 
@@ -199,7 +191,11 @@ void print_event_entry(event_entry *entry, uint64_t index)
 // Imprime entrada da lista de eventos
 void print_scheduled_entry(scheduler_entry *entry, uint64_t index)
 {
+    // Strikethrough no texto caso tenha sido removido
+    if (entry->b_removed) { printf ("\e[9m"); }
+
     printf("(%-7lu) ", index);
+    
     switch (entry->entry_type)
     {
         case NONE:
@@ -213,6 +209,18 @@ void print_scheduled_entry(scheduler_entry *entry, uint64_t index)
             break;
     }
     printf(" || %10f || %10f ||\n", entry->time, entry->draw);
+
+    // Strikethrough no texto caso tenha sido removido
+    printf("\e[m");    
+}
+
+void print_queue_state_probability_calc()
+{
+    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+    {
+        printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i]/current_time));
+    }
+    printf("T: %f (%f%%)\n", current_time, 100.0);
 }
 
 int main(void)
