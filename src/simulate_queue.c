@@ -6,7 +6,7 @@
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
 #define QUEUE_CAPACITY 5                                // Capacidade máxima da fila
-#define MAX_NUM_RNG 100000                              // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 30                              // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE};                // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada e Saída)
@@ -51,7 +51,7 @@ scheduler_entry *current_scheduled_entries[MAX_NUM_RNG];// Lista de pointers de 
 uint64_t current_scheduled_entries_count = 0;           // Contador do número da lista de pointers de entradas ainda não executadas do escalonador
 
 // Função auxiliar do quicksort para ordenar entradas de menor para maior tempo no escalonador
-int compare_entries_asc(const void *a, const void *b)
+int compare_entries_by_time_asc(const void *a, const void *b)
 {
     float entry_a = ((*(scheduler_entry **)a))->time;
     float entry_b = ((*(scheduler_entry **)b))->time;
@@ -91,12 +91,19 @@ double calculate_draw(uint64_t min, uint64_t max)
 void add_to_scheduler(enum EntryType type, double a, double b)
 {
     double new_draw = calculate_draw(a,b);
+
+    // TODO: ERRO NESSA PARTE (COMO?!)
+    printf("1 total_scheduled_entries_count %lu\n", total_scheduled_entries_count);
+    // total_scheduled_count, exatamente no final de tudo, vai de 30 (MAX_QUEUE_STATE que eu setei pra teste) pra 2 (por que?!)
     total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = type, .draw = new_draw, .time = (current_time + new_draw), .b_removed = false};
+    printf("2 total_scheduled_entries_count %lu\n", total_scheduled_entries_count);
+    // FIM DO ERRO
+
     current_scheduled_entries[current_scheduled_entries_count++] = &total_scheduled_entries[total_scheduled_entries_count++];
 }
 
 // Função de entrada de uma unidade na fila
-void arrival(scheduler_entry *scheduled_event, double rng)
+void arrival(scheduler_entry *scheduled_event)
 {
     scheduled_event->b_removed = true;
 
@@ -109,25 +116,27 @@ void arrival(scheduler_entry *scheduled_event, double rng)
     new_event->time = current_time;
     new_event->index = scheduled_event->index;
 
+    // TODO: Adicionar evento de perda de unidade na fila?
+
     // Verifica se existe espaço na fila
     if (current_queue_size < queue_capacity)
     {
-        // Se existe atendente livre, entra e adiciona ao escalonador uma nova saída
-        if (current_queue_size <= num_servers)
-        {
-            add_to_scheduler(SERVICE, min_service, max_service);
-        }
-
         // Utiliza estado da fila atual para ser copiado a este evento
-        current_queue_state[current_queue_size] += rng;
+        current_queue_state[current_queue_size] += scheduled_event->draw;
         for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
         {
             new_event->queue_states[i] = current_queue_state[i];
         }
         
         // Aumenta tamanho da fila na simulação e no evento
-        current_queue_size++;   // TODO: antes ou depois?
+        current_queue_size++;
         new_event->queue_size = current_queue_size;
+
+        // Se existe atendente livre, entra e adiciona ao escalonador uma nova saída
+        if (current_queue_size <= num_servers)
+        {
+            add_to_scheduler(SERVICE, min_service, max_service);
+        }
     }
     else
     {
@@ -140,7 +149,7 @@ void arrival(scheduler_entry *scheduled_event, double rng)
 }
 
 // Função de saída de uma unidade na fila
-void service(scheduler_entry *scheduled_event, double rng)
+void service(scheduler_entry *scheduled_event)
 {
     scheduled_event->b_removed = true;
     
@@ -154,7 +163,7 @@ void service(scheduler_entry *scheduled_event, double rng)
     new_event->index = scheduled_event->index;
 
     // Utiliza estado da fila atual para ser copiado a este evento
-    current_queue_state[current_queue_size] += rng;
+    current_queue_state[current_queue_size] += scheduled_event->draw;
     for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
     {
         new_event->queue_states[i] = current_queue_state[i];
@@ -235,33 +244,30 @@ int main(void)
 {
     // Cria uma primeira entrada no escalonador e envia na função de entrada na fila para início da simulação
     // Esta primeira entrada no escalonador será logo descartada e sobreescrita, e por isso não incrementa o schedule_entries_count
-
-    // TODO: Acho que o problema pode estar por aqui. consegui fazer funcionar mais ou menos quando ponho pelo add_to_scheduler
-    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = ARRIVAL, .draw = 0.0, .time = 2.0, .b_removed=false};
+    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = ARRIVAL, .draw = first_arrival, .time = first_arrival, .b_removed=false};
     current_scheduled_entries[current_scheduled_entries_count] = &total_scheduled_entries[total_scheduled_entries_count++];
-    arrival(current_scheduled_entries[0], first_arrival);
+    arrival(current_scheduled_entries[0]);
 
     while (!b_finished)
     {
         // Ordena entradas do escalonador por tempo
-        qsort(current_scheduled_entries, current_scheduled_entries_count, sizeof(scheduler_entry *), compare_entries_asc);
+        qsort(current_scheduled_entries, current_scheduled_entries_count, sizeof(scheduler_entry *), compare_entries_by_time_asc);
 
         scheduler_entry *entry = current_scheduled_entries[0];
         if (entry->entry_type == ARRIVAL)
         {
-            arrival(entry, entry->draw);
+            arrival(entry);
         }
         else if (entry->entry_type == SERVICE)
         {
-            service(entry, entry->draw);
+            service(entry);
         }
-        
-
         for (uint64_t i = 1; i < current_scheduled_entries_count; i++)
         {
             current_scheduled_entries[i-1] = current_scheduled_entries[i];
         }
         current_scheduled_entries_count--;
+        
     }
 
     printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||    TIME    ||");
@@ -284,6 +290,8 @@ int main(void)
 
     printf("\nProbabilities of each queue state:\n");
     print_queue_state_probability_calc();
+
+    printf("\nUnits lost: %lu\n", lost_queue_units);
 
     return 0;
 }
