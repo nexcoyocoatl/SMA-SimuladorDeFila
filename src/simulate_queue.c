@@ -6,7 +6,7 @@
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
 #define QUEUE_CAPACITY 5                                // Capacidade máxima da fila
-#define MAX_NUM_RNG 1000000                             // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 100000                              // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE};                // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada e Saída)
@@ -174,7 +174,7 @@ void service(scheduler_entry *scheduled_event, double rng)
 // Imprime entrada da lista de eventos
 void print_event_entry(event_entry *entry, uint64_t index)
 {
-    printf("(%lu) ", index);
+    printf("(%-7lu) ", index);
     switch (entry->entry_type)
     {
         case NONE:
@@ -187,19 +187,19 @@ void print_event_entry(event_entry *entry, uint64_t index)
             printf("SERVICE");
             break;
     }
-    printf(" | %lu | %f |", entry->queue_size, entry->time);
+    printf(" || %10lu || %10f ||", entry->queue_size, entry->time);
 
     for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
     {
-        printf(" %f |", entry->queue_states[i]);
+        printf(" %10f |", entry->queue_states[i]);
     }
-    printf("\n");
+    printf("|\n");
 }
 
 // Imprime entrada da lista de eventos
 void print_scheduled_entry(scheduler_entry *entry, uint64_t index)
 {
-    printf("(%lu) ", index);
+    printf("(%-7lu) ", index);
     switch (entry->entry_type)
     {
         case NONE:
@@ -212,13 +212,17 @@ void print_scheduled_entry(scheduler_entry *entry, uint64_t index)
             printf("SERVICE");
             break;
     }
-    printf(" | %f | %f\n", entry->time, entry->draw);
+    printf(" || %10f || %10f ||\n", entry->time, entry->draw);
 }
 
 int main(void)
 {
     // Cria uma primeira entrada no escalonador e envia na função de entrada na fila para início da simulação
-    scheduled_entries[0] = (scheduler_entry){.entry_type = ARRIVAL, .time = first_arrival, .draw = 0.0};
+    // Esta primeira entrada no escalonador será logo descartada e sobreescrita, e por isso não incrementa o schedule_entries_count
+
+    // TODO: Acho que o problema pode estar por aqui. consegui fazer funcionar mais ou menos quando ponho pelo add_to_scheduler
+    scheduled_entries[scheduled_entries_count] = (scheduler_entry){.entry_type = ARRIVAL, .draw = 0.0, .time = 2.0};
+    total_scheduled_entries[total_scheduled_entries_count++] = scheduled_entries[scheduled_entries_count];
     arrival(&scheduled_entries[0], first_arrival);
 
     while (!b_finished)
@@ -243,14 +247,19 @@ int main(void)
         scheduled_entries_count--;
     }
 
-    printf("Chronological Events:\n");
+    printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||    TIME    ||");
+    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+    {
+        printf(" %10lu |", i);
+    }
+    printf("|\n");
     print_event_entry(&(event_entry){.entry_type = NONE, .queue_size = 0, .time = 0.0, .queue_states = {0.0}}, 0);
     for (uint64_t i = 0; i < event_entries_count; i++)
     {
         print_event_entry(&event_entries[i], i+1);
     }
 
-    printf("\nScheduled Events:\n");
+    printf("\nScheduled Events:\n       TYPE       ||    TIME    ||    DRAW    ||\n");
     for (uint64_t i = 0; i < total_scheduled_entries_count; i++)
     {
         print_scheduled_entry(&total_scheduled_entries[i], i+1);
