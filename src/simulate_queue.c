@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
@@ -16,7 +15,7 @@ typedef struct {                                        // Struct de entradas da
     enum EntryType entry_type;                          // Tipo da entrada
     uint64_t queue_size;                                // Tamanho da fila
     double time;                                        // Tempo que será executado
-    double queue_states[QUEUE_CAPACITY + 1];            // Estados da fila (tempo total para cada estado da fila)
+    double queue_states[MAX_QUEUE_STATE];               // Estados da fila (tempo total para cada estado da fila)
 } event_entry;          
 
 typedef struct {                                        // Struct de entradas da lista do escalonador
@@ -25,7 +24,6 @@ typedef struct {                                        // Struct de entradas da
     double draw;                                        // Sorteio do RNG
 } scheduler_entry;          
 
-bool b_finished = false;                                // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 const uint64_t num_servers = 1;                         // Número de atendentes
 const uint64_t queue_capacity = QUEUE_CAPACITY;         // Capacidade da fila
 const double first_arrival = 2.0;                       // Primeira chegada
@@ -34,6 +32,7 @@ const double max_arrival = 5.0;                         // Número máximo da ch
 const double min_service = 3.0;                         // Número mínimo da saída
 const double max_service = 5.0;                         // Número máximo da saída
 
+bool b_finished = false;                                // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 double current_time = 0.0;                              // Tempo atual da simulação (incrementa a cada evento)
 uint64_t rng_count = 0;                                 // Contador de números RNG utilizados
 uint64_t current_queue_size = 0;                        // Número atual do tamanho da fila
@@ -224,7 +223,7 @@ int main(void)
     while (!b_finished)
     {
         // Ordena entradas do escalonador por tempo
-        qsort(scheduled_entries, sizeof(scheduler_entry), scheduled_entries_count, compare_entries_asc);
+        qsort(scheduled_entries, scheduled_entries_count, sizeof(scheduler_entry), compare_entries_asc);
 
         scheduler_entry *entry = &scheduled_entries[0];
         if (entry->entry_type == ARRIVAL)
