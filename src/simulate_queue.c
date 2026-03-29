@@ -13,6 +13,7 @@ enum EntryType {NONE, ARRIVAL, SERVICE};                // Tipos de entrada na l
 
 typedef struct {                                        // Struct de entradas da lista de eventos
     enum EntryType entry_type;                          // Tipo da entrada
+    uint64_t index;                                     // Número índice da entrada;
     uint64_t queue_size;                                // Tamanho da fila
     double time;                                        // Tempo que será executado
     double queue_states[MAX_QUEUE_STATE];               // Estados da fila (tempo total para cada estado da fila)
@@ -20,9 +21,10 @@ typedef struct {                                        // Struct de entradas da
 
 typedef struct {                                        // Struct de entradas da lista do escalonador
     enum EntryType entry_type;                          // Tipo da entrada
+    uint64_t index;                                     // Número índice da entrada;
     double time;                                        // Tempo em que o evento ocorre
     double draw;                                        // Sorteio do RNG
-    bool b_removed;                                       // Para indicar se já foi utilizado e removido
+    bool b_removed;                                     // Para indicar se já foi utilizado e removido
 } scheduler_entry;          
 
 const uint64_t num_servers = 1;                         // Número de atendentes
@@ -41,18 +43,18 @@ double current_queue_state[MAX_QUEUE_STATE];            // Estado atual da fila 
 uint64_t lost_queue_units = 0;                          // Unidades perdidas no caso da fila estar no tamanho máximo
 uint64_t previous = 4651815687;                         // Último número RNG computado, inicializado aqui com o seed
 
-scheduler_entry scheduled_entries[MAX_NUM_RNG];         // Entradas do escalonador
-uint64_t scheduled_entries_count = 0;                   // Contador do número de entradas no escalonador
 event_entry event_entries[MAX_NUM_RNG];                 // Entradas da lista de eventos
 uint64_t event_entries_count = 0;                       // Contador do número de entradas na lista de eventos
 scheduler_entry total_scheduled_entries[MAX_NUM_RNG];   // Todas entradas do escalonador, inclusive passadas
 uint64_t total_scheduled_entries_count = 0;             // Contador do número de entradas totais no escalonador, inclusive passadas
+scheduler_entry *current_scheduled_entries[MAX_NUM_RNG];// Lista de pointers de entradas ainda não executadas do escalonador
+uint64_t current_scheduled_entries_count = 0;           // Contador do número da lista de pointers de entradas ainda não executadas do escalonador
 
 // Função auxiliar do quicksort para ordenar entradas de menor para maior tempo no escalonador
 int compare_entries_asc(const void *a, const void *b)
 {
-    float entry_a = ((scheduler_entry *)a)->time;
-    float entry_b = ((scheduler_entry *)b)->time;
+    float entry_a = ((*(scheduler_entry **)a))->time;
+    float entry_b = ((*(scheduler_entry **)b))->time;
 
     return COMPARE_ASC(entry_a, entry_b);
 }
@@ -89,20 +91,23 @@ double calculate_draw(uint64_t min, uint64_t max)
 void add_to_scheduler(enum EntryType type, double a, double b)
 {
     double new_draw = calculate_draw(a,b);
-    scheduled_entries[scheduled_entries_count] = (scheduler_entry){.entry_type = type, .draw = new_draw, .time = (current_time + new_draw), .b_removed = false};
-    total_scheduled_entries[total_scheduled_entries_count++] = scheduled_entries[scheduled_entries_count++];
+    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = type, .draw = new_draw, .time = (current_time + new_draw), .b_removed = false};
+    current_scheduled_entries[current_scheduled_entries_count++] = &total_scheduled_entries[total_scheduled_entries_count++];
 }
 
 // Função de entrada de uma unidade na fila
 void arrival(scheduler_entry *scheduled_event, double rng)
 {
+    scheduled_event->b_removed = true;
+
     // Atualiza o tempo da simulação
     current_time = scheduled_event->time;
 
-    // Cria novo evento, adicionando o tipo de entrada e tempo que está sendo executado
+    // Cria novo evento, adicionando o tipo de entrada, índice e tempo que está sendo executado
     event_entry *new_event = &event_entries[event_entries_count++];
     new_event->entry_type = scheduled_event->entry_type;
     new_event->time = current_time;
+    new_event->index = scheduled_event->index;
 
     // Verifica se existe espaço na fila
     if (current_queue_size < queue_capacity)
@@ -137,13 +142,16 @@ void arrival(scheduler_entry *scheduled_event, double rng)
 // Função de saída de uma unidade na fila
 void service(scheduler_entry *scheduled_event, double rng)
 {
+    scheduled_event->b_removed = true;
+    
     // Atualiza o tempo da simulação
     current_time = scheduled_event->time;
 
-    // Cria novo evento, adicionando o tipo de entrada e tempo que está sendo executado
+    // Cria novo evento, adicionando o tipo de entrada, índice e tempo que está sendo executado
     event_entry *new_event = &event_entries[event_entries_count++];
     new_event->entry_type = scheduled_event->entry_type;
     new_event->time = current_time;
+    new_event->index = scheduled_event->index;
 
     // Utiliza estado da fila atual para ser copiado a este evento
     current_queue_state[current_queue_size] += rng;
@@ -164,9 +172,9 @@ void service(scheduler_entry *scheduled_event, double rng)
 }
 
 // Imprime entrada da lista de eventos
-void print_event_entry(event_entry *entry, uint64_t index)
+void print_event_entry(event_entry *entry)
 {
-    printf("(%-7lu) ", index);
+    printf("(%-7lu) ", entry->index);
     switch (entry->entry_type)
     {
         case NONE:
@@ -189,12 +197,12 @@ void print_event_entry(event_entry *entry, uint64_t index)
 }
 
 // Imprime entrada da lista de eventos
-void print_scheduled_entry(scheduler_entry *entry, uint64_t index)
+void print_scheduled_entry(scheduler_entry *entry)
 {
     // Strikethrough no texto caso tenha sido removido
     if (entry->b_removed) { printf ("\e[9m"); }
 
-    printf("(%-7lu) ", index);
+    printf("(%-7lu) ", entry->index);
     
     switch (entry->entry_type)
     {
@@ -229,16 +237,16 @@ int main(void)
     // Esta primeira entrada no escalonador será logo descartada e sobreescrita, e por isso não incrementa o schedule_entries_count
 
     // TODO: Acho que o problema pode estar por aqui. consegui fazer funcionar mais ou menos quando ponho pelo add_to_scheduler
-    scheduled_entries[scheduled_entries_count] = (scheduler_entry){.entry_type = ARRIVAL, .draw = 0.0, .time = 2.0};
-    total_scheduled_entries[total_scheduled_entries_count++] = scheduled_entries[scheduled_entries_count];
-    arrival(&scheduled_entries[0], first_arrival);
+    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.index = (total_scheduled_entries_count + 1), .entry_type = ARRIVAL, .draw = 0.0, .time = 2.0, .b_removed=false};
+    current_scheduled_entries[current_scheduled_entries_count] = &total_scheduled_entries[total_scheduled_entries_count++];
+    arrival(current_scheduled_entries[0], first_arrival);
 
     while (!b_finished)
     {
         // Ordena entradas do escalonador por tempo
-        qsort(scheduled_entries, scheduled_entries_count, sizeof(scheduler_entry), compare_entries_asc);
+        qsort(current_scheduled_entries, current_scheduled_entries_count, sizeof(scheduler_entry *), compare_entries_asc);
 
-        scheduler_entry *entry = &scheduled_entries[0];
+        scheduler_entry *entry = current_scheduled_entries[0];
         if (entry->entry_type == ARRIVAL)
         {
             arrival(entry, entry->draw);
@@ -247,12 +255,13 @@ int main(void)
         {
             service(entry, entry->draw);
         }
+        
 
-        for (uint64_t i = 1; i < scheduled_entries_count; i++)
+        for (uint64_t i = 1; i < current_scheduled_entries_count; i++)
         {
-            scheduled_entries[i-1] = scheduled_entries[i];
+            current_scheduled_entries[i-1] = current_scheduled_entries[i];
         }
-        scheduled_entries_count--;
+        current_scheduled_entries_count--;
     }
 
     printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||    TIME    ||");
@@ -261,16 +270,16 @@ int main(void)
         printf(" %10lu |", i);
     }
     printf("|\n");
-    print_event_entry(&(event_entry){.entry_type = NONE, .queue_size = 0, .time = 0.0, .queue_states = {0.0}}, 0);
+    print_event_entry(&(event_entry){.entry_type = NONE, .queue_size = 0, .time = 0.0, .queue_states = {0.0}});
     for (uint64_t i = 0; i < event_entries_count; i++)
     {
-        print_event_entry(&event_entries[i], i+1);
+        print_event_entry(&event_entries[i]);
     }
 
     printf("\nScheduled Events:\n       TYPE       ||    TIME    ||    DRAW    ||\n");
     for (uint64_t i = 0; i < total_scheduled_entries_count; i++)
     {
-        print_scheduled_entry(&total_scheduled_entries[i], i+1);
+        print_scheduled_entry(&total_scheduled_entries[i]);
     }
 
     printf("\nProbabilities of each queue state:\n");
