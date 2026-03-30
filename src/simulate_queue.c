@@ -5,7 +5,7 @@
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))   // Macro para funcão auxiliar de comparação entre valores do qsort
 
-#define DEBUG 1                                         // Para ativar modo debug
+#define DEBUG 0                                         // Para ativar modo debug
 #define QUEUE_CAPACITY 5                                // Capacidade máxima da fila
 #define MAX_NUM_RNG 30  // (Mudar pro número correto)   // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                // Número máximo de estados da fila (Capacidade da fila + 1)
@@ -241,9 +241,9 @@ void print_queue_state_probability_calc()
 {
     for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
     {
-        printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i] / current_time * 100));
+        printf("%5lu: %13f (%10f%%)\n", i, current_queue_state[i], (current_queue_state[i] / current_time * 100));
     }
-    printf("T: %f (%f%%)\n", current_time, 100.0);
+    printf("    T: %13f (%10f%%)\n", current_time, 100.0);
 }
 
 int main(void)
