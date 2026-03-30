@@ -241,7 +241,7 @@ void print_queue_state_probability_calc()
 {
     for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
     {
-        printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i]/current_time));
+        printf("%lu: %f (%f%%)\n", i, current_queue_state[i], (current_queue_state[i] / current_time * 100));
     }
     printf("T: %f (%f%%)\n", current_time, 100.0);
 }
