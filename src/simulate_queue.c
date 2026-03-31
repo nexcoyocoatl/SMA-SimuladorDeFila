@@ -5,12 +5,12 @@
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))       // Macro para funcão auxiliar de comparação entre valores do qsort
 
-#define DEBUG 0                                             // Para ativar modo debug
+#define DEBUG 1                                             // Para ativar modo debug
 #define QUEUE_CAPACITY 5                                    // Capacidade máxima da fila
 #define MAX_NUM_RNG 1000000  // (Mudar pro número correto)  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                    // Número máximo de estados da fila (Capacidade da fila + 1)
 
-enum EntryType {NONE, ARRIVAL, SERVICE};                    // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada e Saída)
+enum EntryType {NONE, ARRIVAL, SERVICE, LOSS};              // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída e Unidade Perdida)
 
 typedef struct {                                            // Struct de entradas da lista de eventos
     enum EntryType entry_type;                              // Tipo da entrada
@@ -110,8 +110,6 @@ void arrival(scheduler_entry *scheduled_event)
     new_event->time = current_time;
     new_event->index = scheduled_event->index;
 
-    // TODO: Adicionar evento de perda de unidade na fila?
-
     // Verifica se existe espaço na fila
     if (current_queue_size < queue_capacity)
     {
@@ -124,7 +122,6 @@ void arrival(scheduler_entry *scheduled_event)
         
         // Aumenta tamanho da fila na simulação e no evento
         current_queue_size++;
-        new_event->queue_size = current_queue_size;
 
         // Se existe atendente livre, entra e adiciona ao escalonador uma nova saída
         if (current_queue_size <= num_servers)
@@ -134,9 +131,12 @@ void arrival(scheduler_entry *scheduled_event)
     }
     else
     {
+        scheduled_event->entry_type = LOSS;
+        new_event->entry_type = LOSS;
         // Caso não exista espaço, unidade é perdida
         lost_queue_units++;
     }
+    new_event->queue_size = current_queue_size;
 
     // Agenda nova chegada de outra unidade
     add_to_scheduler(ARRIVAL, min_arrival, max_arrival);
@@ -177,6 +177,8 @@ void service(scheduler_entry *scheduled_event)
 // Imprime entrada da lista de eventos
 void print_event_entry(event_entry *entry)
 {
+    bool b_loss = false;
+
     printf("(%-7lu) ", entry->index);
     switch (entry->entry_type)
     {
@@ -189,7 +191,18 @@ void print_event_entry(event_entry *entry)
         case SERVICE:
             printf("SERVICE");
             break;
+        case LOSS:
+            b_loss = true;
+            printf(" LOSS  ");
+            break;
     }
+
+    if (b_loss)
+    {
+        printf(" || %10lu || %15f || LOST UNIT!\n", entry->queue_size, entry->time);
+        return;
+    }
+
     printf(" || %10lu || %15f ||", entry->queue_size, entry->time);
 
     for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
@@ -202,6 +215,8 @@ void print_event_entry(event_entry *entry)
 // Imprime entrada da lista de eventos
 void print_scheduled_entry(scheduler_entry *entry)
 {
+    bool b_loss = false;
+
     // Strikethrough no texto caso tenha sido removido
     if (entry->b_removed) { printf ("\e[9m"); }
 
@@ -218,11 +233,21 @@ void print_scheduled_entry(scheduler_entry *entry)
         case SERVICE:
             printf("SERVICE");
             break;
+        case LOSS:
+            b_loss = true;
+            printf("ARRIVAL");
+            break;
     }
-    printf(" || %15f || %10f ||\n", entry->time, entry->draw);
+    printf(" || %15f || %10f ||", entry->time, entry->draw);
 
     // Strikethrough no texto caso tenha sido removido
     printf("\e[m");    
+
+    if (b_loss)
+    {
+        printf(" LOST UNIT!");
+    }
+    printf("\n");
 }
 
 void print_queue_state_probability_calc()
@@ -266,17 +291,17 @@ int main(void)
 
     if (DEBUG)
     {
-        printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||    TIME    ||");
-        for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
-        {
-            printf(" %10lu |", i);
-        }
-        printf("|\n");
-        print_event_entry(&(event_entry){.entry_type = NONE, .queue_size = 0, .time = 0.0, .queue_states = {0.0}});
-        for (uint64_t i = 0; i < event_entries_count; i++)
-        {
-            print_event_entry(&event_entries[i]);
-        }
+        // printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||    TIME    ||");
+        // for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+        // {
+        //     printf(" %10lu |", i);
+        // }
+        // printf("|\n");
+        // print_event_entry(&(event_entry){.entry_type = NONE, .queue_size = 0, .time = 0.0, .queue_states = {0.0}});
+        // for (uint64_t i = 0; i < event_entries_count; i++)
+        // {
+        //     print_event_entry(&event_entries[i]);
+        // }
 
         printf("\nScheduled Events:\n       TYPE       ||    TIME    ||    DRAW    ||\n");
         for (uint64_t i = 0; i < total_scheduled_entries_count; i++)
