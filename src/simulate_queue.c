@@ -5,9 +5,9 @@
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))       // Macro para funcão auxiliar de comparação entre valores do qsort
 
-#define DEBUG 0                                             // Para ativar modo debug
+#define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
 #define QUEUE_CAPACITY 5                                    // Capacidade máxima da fila
-#define MAX_NUM_RNG 1000000  // (Mudar pro número correto)  // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                    // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE, LOSS};              // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída e Unidade Perdida)
@@ -313,7 +313,7 @@ int main(void)
     printf("\nProbabilities of each queue state:\n");
     print_queue_state_probability_calc();
 
-    printf("\nUnits lost: %lu\n", lost_queue_units);
+    printf("\nUnits lost: %lu\n\n", lost_queue_units);
 
     return 0;
 }
