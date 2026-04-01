@@ -7,7 +7,7 @@
 
 #define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
 #define QUEUE_CAPACITY 5                                    // Capacidade máxima da fila
-#define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 30                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                    // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE, LOSS};              // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída e Unidade Perdida)
@@ -122,6 +122,7 @@ void arrival(scheduler_entry *scheduled_event)
         
         // Aumenta tamanho da fila na simulação e no evento
         current_queue_size++;
+        new_event->queue_size = current_queue_size;
 
         // Se existe atendente livre, entra e adiciona ao escalonador uma nova saída
         if (current_queue_size <= num_servers)
@@ -136,7 +137,6 @@ void arrival(scheduler_entry *scheduled_event)
         // Caso não exista espaço, unidade é perdida
         lost_queue_units++;
     }
-    new_event->queue_size = current_queue_size;
 
     // Agenda nova chegada de outra unidade
     add_to_scheduler(ARRIVAL, min_arrival, max_arrival);
@@ -291,10 +291,10 @@ int main(void)
 
     if (DEBUG)
     {
-        printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||    TIME    ||");
+        printf("Chronological Events:\n       TYPE       || QUEUE SIZE ||      TIME       ||");
         for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
         {
-            printf(" %10lu |", i);
+            printf("   %10lu    |", i);
         }
         printf("|\n");
         print_event_entry(&(event_entry){.entry_type = NONE, .queue_size = 0, .time = 0.0, .queue_states = {0.0}});
@@ -303,7 +303,7 @@ int main(void)
             print_event_entry(&event_entries[i]);
         }
 
-        printf("\nScheduled Events:\n       TYPE       ||    TIME    ||    DRAW    ||\n");
+        printf("\nScheduled Events:\n       TYPE       ||    TIME         ||    DRAW    ||\n");
         for (uint64_t i = 0; i < total_scheduled_entries_count; i++)
         {
             print_scheduled_entry(&total_scheduled_entries[i]);
