@@ -3,7 +3,7 @@
 SRC_DIR = src/
 SRC = simulate_queue.c
 OBJ = $(addprefix $(SRC_DIR),$(SRC:.c=.o))
-CFLAGS = -std=c99
+CFLAGS = -std=c99 -O3
 DBGFLAGS = -Wall -Werror -pedantic #-g
 LDFLAGS =
 CC = gcc
