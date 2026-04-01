@@ -7,7 +7,7 @@
 
 #define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
 #define QUEUE_CAPACITY 5                                    // Capacidade máxima da fila
-#define MAX_NUM_RNG 30                                  // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY+1                    // Número máximo de estados da fila (Capacidade da fila + 1)
 
 enum EntryType {NONE, ARRIVAL, SERVICE, LOSS};              // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída e Unidade Perdida)
@@ -101,8 +101,10 @@ void arrival(scheduler_entry *scheduled_event)
 {
     scheduled_event->b_removed = true;
 
-    // Atualiza o tempo da simulação
+    // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
+    double previous_time = current_time;
     current_time = scheduled_event->time;
+    double added_time = current_time - previous_time;
 
     // Cria novo evento, adicionando o tipo de entrada, índice e tempo que está sendo executado
     event_entry *new_event = &event_entries[event_entries_count++];
@@ -114,7 +116,7 @@ void arrival(scheduler_entry *scheduled_event)
     if (current_queue_size < queue_capacity)
     {
         // Utiliza estado da fila atual para ser copiado a este evento
-        current_queue_state[current_queue_size] += scheduled_event->draw;
+        current_queue_state[current_queue_size] += added_time;
         for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
         {
             new_event->queue_states[i] = current_queue_state[i];
@@ -132,10 +134,13 @@ void arrival(scheduler_entry *scheduled_event)
     }
     else
     {
+        // Caso não exista espaço a unidade é perdida
+        // Volta para o tempo anterior, incrementa contador e muda tipo para impressão posterior dos eventos
+        current_time = previous_time;
+        lost_queue_units++;
         scheduled_event->entry_type = LOSS;
         new_event->entry_type = LOSS;
-        // Caso não exista espaço, unidade é perdida
-        lost_queue_units++;
+        new_event->queue_size = current_queue_size;
     }
 
     // Agenda nova chegada de outra unidade
@@ -147,8 +152,10 @@ void service(scheduler_entry *scheduled_event)
 {
     scheduled_event->b_removed = true;
     
-    // Atualiza o tempo da simulação
+    // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
+    double previous_time = current_time;
     current_time = scheduled_event->time;
+    double added_time = current_time - previous_time;
 
     // Cria novo evento, adicionando o tipo de entrada, índice e tempo que está sendo executado
     event_entry *new_event = &event_entries[event_entries_count++];
@@ -157,7 +164,7 @@ void service(scheduler_entry *scheduled_event)
     new_event->index = scheduled_event->index;
 
     // Utiliza estado da fila atual para ser copiado a este evento
-    current_queue_state[current_queue_size] += scheduled_event->draw;
+    current_queue_state[current_queue_size] += added_time;
     for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
     {
         new_event->queue_states[i] = current_queue_state[i];
