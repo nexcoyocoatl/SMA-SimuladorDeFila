@@ -6,9 +6,14 @@
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))       // Macro para funcão auxiliar de comparação entre valores do qsort
 
 #define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
-#define QUEUE_CAPACITY 5                                    // Capacidade máxima da fila
+#define QUEUE_CAPACITY_1 3                                  // Capacidade máxima da fila 1
+#define QUEUE_CAPACITY_2 5                                  // Capacidade máxima da fila 2
 #define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
-#define MAX_QUEUE_STATE QUEUE_CAPACITY+1                    // Número máximo de estados da fila (Capacidade da fila + 1)
+#define MAX_QUEUE_STATE QUEUE_CAPACITY_2+1                  // Número máximo de estados da fila (Capacidade da fila + 1)
+
+// TODO: mudar filas e eventos para funcionar de forma genérica
+// TODO: incluir modificações nas funções para suporte de mais de uma fila
+// TODO: completar a função de troca de fila (exchange)
 
 enum EntryType {NONE, ARRIVAL, SERVICE, LOSS};              // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída e Unidade Perdida)
 
@@ -28,22 +33,56 @@ typedef struct {                                            // Struct de entrada
     bool b_removed;                                         // Para indicar se já foi utilizado e removido
 } scheduler_entry;          
 
-const uint64_t num_servers = 1;                             // Número de atendentes
-const uint64_t queue_capacity = QUEUE_CAPACITY;             // Capacidade da fila
-const double first_arrival = 2.0;                           // Primeira chegada
-const double min_arrival = 2.0;                             // Número mínimo da chegada
-const double max_arrival = 5.0;                             // Número máximo da chegada
-const double min_service = 3.0;                             // Número mínimo da saída
-const double max_service = 5.0;                             // Número máximo da saída
+typedef struct {
+    uint64_t num_servers;                           // Número de atendentes
+    uint64_t capacity;                              // Capacidade da fila
+    uint64_t customers;                             // Clientes na fila
+    uint64_t loss;                                  // Unidades perdidas da fila
+    double first_arrival;                           // Primeira chegada
+    double min_arrival;                             // Número mínimo da chegada
+    double max_arrival;                             // Número máximo da chegada
+    double min_service;                             // Número mínimo da saída
+    double max_service;                             // Número máximo da saída
+    double times[MAX_QUEUE_STATE];                  // Tempos acumulados para cada estado da fila
+    bool b_first_queue;                             // Boolean
+} queue;
+
+queue q1 = {
+            .b_first_queue = true,
+            .num_servers = 2,
+            .capacity = QUEUE_CAPACITY_1,
+            .customers = 0,
+            .loss = 0,
+            .first_arrival = 1.5,
+            .min_arrival = 1,
+            .max_arrival = 4,
+            .min_service = 3,
+            .max_service = 4
+        };
+
+queue q2 = {
+            .b_first_queue = false,
+            .num_servers = 1,
+            .capacity = QUEUE_CAPACITY_2,
+            .customers = 0,
+            .loss = 0,
+            .first_arrival = 0,
+            .min_arrival = 0,
+            .max_arrival = 0,
+            .min_service = 2,
+            .max_service = 3
+        };
 
 bool b_finished = false;                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
+
+// TODO: Pensar se faz sentido um temporizador global ou por fila
 double current_time = 0.0;                                  // Tempo atual da simulação (incrementa a cada evento)
 uint64_t rng_count = 0;                                     // Contador de números RNG utilizados
 uint64_t current_queue_size = 0;                            // Número atual do tamanho da fila
 double current_queue_state[MAX_QUEUE_STATE];                // Estado atual da fila (tempo total para cada estado da fila)
-uint64_t lost_queue_units = 0;                              // Unidades perdidas no caso da fila estar no tamanho máximo
 uint64_t previous = 4651815687;                             // Último número RNG computado, inicializado aqui com o seed
 
+// TODO: Mudar para eventos genéricos
 event_entry event_entries[MAX_NUM_RNG+1];                   // Entradas da lista de eventos
 uint64_t event_entries_count = 0;                           // Contador do número de entradas na lista de eventos
 scheduler_entry total_scheduled_entries[MAX_NUM_RNG+1];     // Todas entradas do escalonador, inclusive passadas
@@ -179,6 +218,16 @@ void service(scheduler_entry *scheduled_event)
     {
         add_to_scheduler(SERVICE, min_service, max_service);
     }
+}
+
+void exchange_queue(scheduler_entry *scheduled_event, queue *q)
+{
+    // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
+    double previous_time = current_time;
+    current_time = scheduled_event->time;
+    double added_time = current_time - previous_time;
+
+    // TODO: Continuar
 }
 
 // Imprime entrada da lista de eventos
