@@ -14,7 +14,6 @@
 
 // TODO: Ajustar cálculo do tempo nos estados das filas
 // TODO: Verificar se existem outros bugs
-// TODO: mudar filas para funcionar de forma genérica
 // TODO: mudar eventos para funcionar de forma genérica
 
 enum EntryType {NONE, ARRIVAL, SERVICE, EXCHANGE, LOSS};    // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída, Passagem e Unidade Perdida)
@@ -50,34 +49,6 @@ typedef struct {
     bool b_first_queue;                             // Boolean
 } queue;
 
-queue q0 = {
-            .index = 0,
-            .b_first_queue = true,
-            .num_servers = 2,
-            .capacity = QUEUE_CAPACITY_1,
-            .customers = 0,
-            .loss = 0,
-            .first_arrival = 1.5,
-            .min_arrival = 1,
-            .max_arrival = 4,
-            .min_service = 3,
-            .max_service = 4
-        };
-
-queue q1 = {
-            .index = 1,
-            .b_first_queue = false,
-            .num_servers = 1,
-            .capacity = QUEUE_CAPACITY_2,
-            .customers = 0,
-            .loss = 0,
-            .first_arrival = 0,
-            .min_arrival = 0,
-            .max_arrival = 0,
-            .min_service = 2,
-            .max_service = 3
-        };
-
 bool b_finished = false;                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 // TODO: Pensar se faz sentido um temporizador global ou por fila
@@ -85,6 +56,8 @@ double current_time = 0.0;                                  // Tempo atual da si
 uint64_t rng_count = 0;                                     // Contador de números RNG utilizados
 uint64_t previous = 4651815687;                             // Último número RNG computado, inicializado aqui com o seed
 
+queue queues[NUM_QUEUES];                                   // Array de filas da simulação
+const uint64_t num_queues = NUM_QUEUES;                     // Número de filas da simulação
 // TODO: Mudar para eventos genéricos
 event_entry event_entries[MAX_NUM_RNG+1];                   // Entradas da lista de eventos
 uint64_t event_entries_count = 0;                           // Contador do número de entradas na lista de eventos
@@ -92,6 +65,7 @@ scheduler_entry total_scheduled_entries[MAX_NUM_RNG+1];     // Todas entradas do
 uint64_t total_scheduled_entries_count = 0;                 // Contador do número de entradas totais no escalonador, inclusive passadas
 scheduler_entry *current_scheduled_entries[MAX_NUM_RNG+1];  // Lista de pointers de entradas ainda não executadas do escalonador
 uint64_t current_scheduled_entries_count = 0;               // Contador do número da lista de pointers de entradas ainda não executadas do escalonador
+
 
 // Função auxiliar do quicksort para ordenar entradas de menor para maior tempo no escalonador
 int compare_entries_by_time_asc(const void *a, const void *b)
@@ -105,12 +79,39 @@ int compare_entries_by_time_asc(const void *a, const void *b)
 // Função para inicializar valores padrão e outras configurações iniciais
 void setup()
 {
+    queues[0] = (queue){
+            .index = 0,
+            .b_first_queue = true,
+            .num_servers = 2,
+            .capacity = QUEUE_CAPACITY_1,
+            .customers = 0,
+            .loss = 0,
+            .first_arrival = 1.5,
+            .min_arrival = 1,
+            .max_arrival = 4,
+            .min_service = 3,
+            .max_service = 4
+        };
+    
+    queues[1] = (queue){
+            .index = 1,
+            .b_first_queue = false,
+            .num_servers = 1,
+            .capacity = QUEUE_CAPACITY_2,
+            .customers = 0,
+            .loss = 0,
+            .first_arrival = 0,
+            .min_arrival = 0,
+            .max_arrival = 0,
+            .min_service = 2,
+            .max_service = 3
+        };
+
     for (uint64_t i = 0; i < NUM_QUEUES; i++)
     {
         for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
         {
-            q0.times[j] = 0;
-            q1.times[j] = 0;
+            queues[i].times[j] = 0;
         }
     }    
 }
@@ -336,23 +337,15 @@ void print_event_entry(event_entry *entry)
 
     printf(" || %15f ||", entry->time);
 
-    // TODO: Deixar genérico
-    // Fila 1
-    printf(" %10lu |", entry->queue_sizes[0]);
-    for (uint64_t j = 0; j < q0.capacity; j++)
+    for (uint64_t i = 0; i < NUM_QUEUES; i++)
     {
-        printf(" %15f |", entry->queue_states[0][j]);
-    }
-    printf("|");
-
-    // Fila 2
-    printf(" %10lu |", entry->queue_sizes[1]);
-    for (uint64_t j = 0; j < q1.capacity; j++)
-    {
-        printf(" %15f |", entry->queue_states[1][j]);
-    }
-    printf("|");
-      
+        printf(" %10lu |", entry->queue_sizes[0]);
+        for (uint64_t j = 0; j < queues[i].capacity; j++)
+        {
+            printf(" %15f |", entry->queue_states[0][j]);
+        }
+        printf("|");
+    }     
 
     if (b_loss)
     {
@@ -403,13 +396,18 @@ void print_scheduled_entry(scheduler_entry *entry)
     printf("\n");
 }
 
-void print_queue_state_probability_calc(queue *q)
+void print_queue_state_probability_calc()
 {
-    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+    for (uint64_t i = 0; i < NUM_QUEUES; i++)
     {
-        printf("%5lu: %15f (%10f%%)\n", i, q->times[i], (q->times[i] / current_time * 100));
+        printf("Queue %lu:\n", i);
+        for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
+        {
+            printf("%5lu: %15f (%10f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
+        }
+        printf("Units lost queue %lu: %lu\n", i, queues[i].loss);
     }
-    // printf("    T: %15f (%10f%%)\n", current_time, 100.0); // Não é mais pra 1 fila, mas pra todos
+    printf("TOTAL: %15f (%10f%%)\n", current_time, 100.0);
 }
 
 int main(void)
@@ -418,9 +416,9 @@ int main(void)
 
     // Cria uma primeira entrada no escalonador e envia na função de entrada na fila 1 para início da simulação
     // Esta primeira entrada no escalonador será logo descartada e sobreescrita, e por isso não incrementa o schedule_entries_count
-    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.entry_type = ARRIVAL, .index = (total_scheduled_entries_count + 1), .draw = q0.first_arrival, .time = q0.first_arrival, .b_removed=false};
+    total_scheduled_entries[total_scheduled_entries_count] = (scheduler_entry){.entry_type = ARRIVAL, .index = (total_scheduled_entries_count + 1), .draw = queues[0].first_arrival, .time = queues[0].first_arrival, .b_removed=false};
     current_scheduled_entries[current_scheduled_entries_count] = &total_scheduled_entries[total_scheduled_entries_count++];
-    arrival(current_scheduled_entries[0], &q0);
+    arrival(current_scheduled_entries[0], &queues[0]);
 
     while (!b_finished)
     {
@@ -430,15 +428,15 @@ int main(void)
         scheduler_entry *entry = current_scheduled_entries[0];
         if (entry->entry_type == ARRIVAL)
         {
-            arrival(entry, &q0);
+            arrival(entry, &queues[0]);
         }
         else if (entry->entry_type == SERVICE)
         {
-            service(entry, &q1);
+            service(entry, &queues[1]);
         }
         else if (entry->entry_type == EXCHANGE)
         {
-            exchange_queue(entry, &q0, &q1);
+            exchange_queue(entry, &queues[0], &queues[1]);
         }
         for (uint64_t i = 1; i < current_scheduled_entries_count; i++)
         {
@@ -453,23 +451,15 @@ int main(void)
         printf("Chronological Events:\n        TYPE       || ");
         printf("     TIME       ||");
 
-        // TODO: Deixar genérico
-        // Fila 1
-        printf(" QUEUE %4lu |", (uint64_t)1);
-        for (uint64_t j = 0; j < q0.capacity; j++)
+        for (uint64_t i = 0; i < NUM_QUEUES; i++)
         {
-            printf("   %10lu    |", j);
-        }
-        printf("|");
-
-        // Fila 2
-        printf(" QUEUE %4lu |", (uint64_t)2);
-        for (uint64_t j = 0; j < q1.capacity; j++)
-        {
-            printf("   %10lu    |", j);
-        }
-        printf("|");
-        
+            printf(" QUEUE %4lu |", (uint64_t)1);
+            for (uint64_t j = 0; j < queues[i].capacity; j++)
+            {
+                printf("   %10lu    |", j);
+            }
+            printf("|");
+        }        
         
         printf("\n");
         print_event_entry(&(event_entry){.entry_type = NONE, .queue_sizes = {0}, .time = 0.0, .queue_states = {0.0}});
@@ -486,15 +476,7 @@ int main(void)
     }
 
     printf("\nProbabilities of each queue state:\n");
-
-    printf("Queue 1:\n");
-    print_queue_state_probability_calc(&q0);
-    printf("Units lost queue 1: %lu\n", q0.loss);
-
-    printf("\nQueue 2:\n");
-    print_queue_state_probability_calc(&q1);    
-    printf("Units lost queue 2: %lu\n", q1.loss);
-    printf("TOTAL: %15f (%10f%%)\n", current_time, 100.0);
+    print_queue_state_probability_calc();
 
     return 0;
 }
