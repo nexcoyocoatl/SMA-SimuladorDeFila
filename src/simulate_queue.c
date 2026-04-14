@@ -409,7 +409,7 @@ void print_queue_state_probability_calc(queue *q)
     {
         printf("%5lu: %15f (%10f%%)\n", i, q->times[i], (q->times[i] / current_time * 100));
     }
-    printf("    T: %15f (%10f%%)\n", current_time, 100.0);
+    // printf("    T: %15f (%10f%%)\n", current_time, 100.0); // Não é mais pra 1 fila, mas pra todos
 }
 
 int main(void)
@@ -489,11 +489,12 @@ int main(void)
 
     printf("Queue 1:\n");
     print_queue_state_probability_calc(&q0);
-    printf("\nUnits lost queue 1: %lu\n", q0.loss);
+    printf("Units lost queue 1: %lu\n", q0.loss);
 
     printf("\nQueue 2:\n");
     print_queue_state_probability_calc(&q1);    
-    printf("Units lost queue 2: %lu\n\n", q1.loss);
+    printf("Units lost queue 2: %lu\n", q1.loss);
+    printf("TOTAL: %15f (%10f%%)\n", current_time, 100.0);
 
     return 0;
 }
