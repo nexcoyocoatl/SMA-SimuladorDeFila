@@ -9,7 +9,7 @@
 #define NUM_QUEUES 2                                        // Número de filas
 #define QUEUE_CAPACITY_1 3                                  // Capacidade máxima da fila 1
 #define QUEUE_CAPACITY_2 5                                  // Capacidade máxima da fila 2
-#define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 10                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY_2+1                  // Número máximo de estados da fila (Capacidade da fila maior + 1)
 
 // TODO: Ajustar cálculo do tempo nos estados das filas
@@ -187,12 +187,15 @@ void arrival(event_entry *event, queue *q)
     // Verifica se existe espaço na fila
     if (q->customers < q->capacity)
     {
-        // Utiliza estado da fila atual para ser copiado a este evento
-        q->times[q->customers] += added_time;
-        for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+        // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+        for (uint64_t i = 0; i < NUM_QUEUES; i++)
         {
-            event->queue_states[queue_index][i] = q->times[i];
-        }
+            queues[i].times[queues[i].customers] += added_time;
+            for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
+            {
+                event->queue_states[i][j] = queues[i].times[queues[i].customers];
+            }
+        }    
         
         // Aumenta tamanho da fila na simulação e no evento
         q->customers++;
@@ -234,12 +237,15 @@ void service(event_entry *event, queue *q)
     current_time = event->time;
     double added_time = current_time - previous_time;
     
-    // Utiliza estado da fila atual para ser copiado a este evento
-    q->times[q->customers] += added_time;
-    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+    for (uint64_t i = 0; i < NUM_QUEUES; i++)
     {
-        event->queue_states[queue_index][i] = q->times[i];
-    }
+        queues[i].times[queues[i].customers] += added_time;
+        for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
+        {
+            event->queue_states[i][j] = queues[i].times[queues[i].customers];
+        }
+    }    
 
     // Diminui tamanho da fila na simulação e no evento
     q->customers--;
@@ -269,11 +275,14 @@ void exchange_queue(event_entry *event, queue *queue_from, queue *queue_to)
     current_time = event->time;
     double added_time = current_time - previous_time;
 
-    // Utiliza estado da fila 1 para ser copiado a este evento
-    queue_from->times[queue_from->customers] += added_time;
-    for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
+    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+    for (uint64_t i = 0; i < NUM_QUEUES; i++)
     {
-        event->queue_states[queue_from_index][i] = queue_from->times[i];
+        queues[i].times[queues[i].customers] += added_time;
+        for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
+        {
+            event->queue_states[i][j] = queues[i].times[queues[i].customers];
+        }
     }
 
     // Diminui tamanho da fila 1 na simulação e no evento
@@ -288,14 +297,7 @@ void exchange_queue(event_entry *event, queue *queue_from, queue *queue_to)
 
     // Verifica se existe espaço na fila 2
     if (queue_to->customers < queue_to->capacity)
-    {
-        // Utiliza estado da fila atual para ser copiado a este evento
-        queue_to->times[queue_to->customers] += added_time;
-        for (uint64_t i = 0; i < MAX_QUEUE_STATE; i++)
-        {
-            event->queue_states[queue_to_index][i] = queue_to->times[i];
-        }
-        
+    {        
         // Aumenta tamanho da fila na simulação e no evento
         queue_to->customers++;
 
@@ -407,14 +409,14 @@ void print_queue_state_probability_calc()
 {
     for (uint64_t i = 0; i < NUM_QUEUES; i++)
     {
-        printf("Queue %lu:\n", i);
+        printf("Queue %lu:\n", i+1);
         for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
         {
             printf("%5lu: %15f (%10f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
         }
-        printf("Units lost queue %lu: %lu\n", i, queues[i].loss);
+        printf(" Loss: %15lu\n", queues[i].loss);
+        printf("TOTAL: %15f (%10f%%)\n\n", current_time, 100.0);
     }
-    printf("TOTAL: %15f (%10f%%)\n", current_time, 100.0);
 }
 
 int main(void)
