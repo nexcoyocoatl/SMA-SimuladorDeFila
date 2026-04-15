@@ -9,7 +9,7 @@
 #define NUM_QUEUES 2                                        // Número de filas
 #define QUEUE_CAPACITY_1 3                                  // Capacidade máxima da fila 1
 #define QUEUE_CAPACITY_2 5                                  // Capacidade máxima da fila 2
-#define MAX_NUM_RNG 10                                  // Número de números pseudoaleatórios a serem calculados
+#define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY_2+1                  // Número máximo de estados da fila (Capacidade da fila maior + 1)
 
 // TODO: Ajustar cálculo do tempo nos estados das filas
@@ -106,7 +106,7 @@ void setup()
         {
             queues[i].times[j] = 0;
         }
-    }    
+    }
 }
 
 // Gerador de número aleatório a partir de congruência linear
@@ -140,6 +140,8 @@ double calculate_draw(uint64_t min, uint64_t max)
 // Adiciona nova entrada no escalonador
 void add_to_scheduler(enum EntryType type, double a, double b)
 {
+    if (b_finished) { return; }
+
     double new_draw = calculate_draw(a,b);
     
     events[events_count] = (event_entry){
@@ -473,6 +475,8 @@ int main(void)
         }
         current_scheduled_entries_count--;
     }
+
+finished:
 
     if (DEBUG)
     {
