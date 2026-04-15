@@ -7,9 +7,9 @@
 
 #define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
 #define NUM_QUEUES 2                                        // Número de filas
-#define QUEUE_CAPACITY_1 3                                  // Capacidade máxima da fila 1
-#define QUEUE_CAPACITY_2 5                                  // Capacidade máxima da fila 2
-#define MAX_NUM_RNG 10                                  // Número de números pseudoaleatórios a serem calculados
+#define QUEUE_CAPACITY_1 2                                  // Capacidade máxima da fila 1
+#define QUEUE_CAPACITY_2 2                                  // Capacidade máxima da fila 2
+#define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY_2+1                  // Número máximo de estados da fila (Capacidade da fila maior + 1)
 
 // TODO: Ajustar cálculo do tempo nos estados das filas
@@ -195,7 +195,7 @@ void arrival(event_entry *event, queue *q)
             {
                 event->queue_states[i][j] = queues[i].times[queues[i].customers];
             }
-        }    
+        }
         
         // Aumenta tamanho da fila na simulação e no evento
         q->customers++;
@@ -209,10 +209,19 @@ void arrival(event_entry *event, queue *q)
     else
     {
         // Caso não exista espaço a unidade é perdida
-        // Volta para o tempo anterior, incrementa contador de loss e muda tipo para impressão posterior dos eventos
-        current_time = previous_time;
+        // incrementa contador de loss e muda tipo para impressão posterior dos eventos
         q->loss++;
         event->entry_type = LOSS;
+        
+        // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+        for (uint64_t i = 0; i < NUM_QUEUES; i++)
+        {
+            queues[i].times[queues[i].customers] += added_time;
+            for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
+            {
+                event->queue_states[i][j] = queues[i].times[queues[i].customers];
+            }
+        }        
     }
 
     event->queue_sizes[queue_index] = q->customers;
@@ -311,7 +320,6 @@ void exchange_queue(event_entry *event, queue *queue_from, queue *queue_to)
     {
         // Caso não exista espaço a unidade é perdida
         // Volta para o tempo anterior, incrementa contador de loss e muda tipo para impressão posterior dos eventos
-        current_time = previous_time;
         queue_to->loss++;
         event->entry_type = LOSS;
     }
