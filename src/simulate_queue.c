@@ -350,7 +350,7 @@ void print_chronological_entry(event_entry *entry)
             printf(" %15f |", entry->queue_states[0][j]);
         }
         printf("|");
-    }     
+    }
 
     if (b_loss)
     {
@@ -491,7 +491,7 @@ int main(void)
         
         printf("\n");
         print_chronological_entry(&(event_entry){.entry_type = NONE, .queue_sizes = {0}, .time = 0.0, .queue_states = {0.0}});
-        for (uint64_t i = 0; i < events_count; i++)
+        for (uint64_t i = 0; i < chronological_events_count; i++)
         {
             print_chronological_entry(chronological_events[i]);
         }
