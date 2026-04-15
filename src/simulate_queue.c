@@ -7,15 +7,12 @@
 
 #define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
 #define NUM_QUEUES 2                                        // Número de filas
-#define QUEUE_CAPACITY_1 2                                  // Capacidade máxima da fila 1
-#define QUEUE_CAPACITY_2 2                                  // Capacidade máxima da fila 2
+#define QUEUE_CAPACITY_1 3                                  // Capacidade máxima da fila 1
+#define QUEUE_CAPACITY_2 5                                  // Capacidade máxima da fila 2
 #define MAX_NUM_RNG 100000                                  // Número de números pseudoaleatórios a serem calculados
 #define MAX_QUEUE_STATE QUEUE_CAPACITY_2+1                  // Número máximo de estados da fila (Capacidade da fila maior + 1)
 
-// TODO: Ajustar cálculo do tempo nos estados das filas
-// TODO: Verificar se existem outros bugs
-
-enum EntryType {NONE, ARRIVAL, SERVICE, EXCHANGE, LOSS};    // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída, Passagem e Unidade Perdida)
+enum EntryType {NONE, ARRIVAL, SERVICE, EXCHANGE};    // Tipos de entrada na lista de eventos e escalonador (Nenhum, Entrada, Saída, Passagem e Unidade Perdida)
 
 typedef struct {                                            // Struct de entradas da lista de eventos
     enum EntryType entry_type;                              // Tipo da entrada
@@ -25,6 +22,7 @@ typedef struct {                                            // Struct de entrada
     uint64_t queue_sizes[NUM_QUEUES];                       // Tamanhos das filas
     double queue_states[NUM_QUEUES][MAX_QUEUE_STATE];       // Estados das fila (tempo total para cada estado de cada fila)
     bool b_removed;                                         // Para indicar se já foi utilizado e removido
+    bool b_loss;                                            // Para indicar se houve uma perda de unidade neste evento
 } event_entry;          
 
 typedef struct {
@@ -44,7 +42,6 @@ typedef struct {
 
 bool b_finished = false;                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
-// TODO: Pensar se faz sentido um temporizador global ou por fila
 double current_time = 0.0;                                  // Tempo atual da simulação (incrementa a cada evento)
 uint64_t rng_count = 0;                                     // Contador de números RNG utilizados
 uint64_t previous = 4651815687;                             // Último número RNG computado, inicializado aqui com o seed
@@ -149,7 +146,8 @@ void add_to_scheduler(enum EntryType type, double a, double b)
                                             .index = (events_count + 1),
                                             .time = (current_time + new_draw),
                                             .draw = new_draw,
-                                            .b_removed = false
+                                            .b_removed = false,
+                                            .b_loss = false
                                         };
 
     event_entry *new_event = &events[events_count];
@@ -184,18 +182,19 @@ void arrival(event_entry *event, queue *q)
     current_time = event->time;
     double added_time = current_time - previous_time;
 
+    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+    for (uint64_t i = 0; i < NUM_QUEUES; i++)
+    {
+        queues[i].times[queues[i].customers] += added_time;
+        for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
+        {
+            event->queue_states[i][j] = queues[i].times[queues[i].customers];
+        }
+    }
+
     // Verifica se existe espaço na fila
     if (q->customers < q->capacity)
     {
-        // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-        for (uint64_t i = 0; i < NUM_QUEUES; i++)
-        {
-            queues[i].times[queues[i].customers] += added_time;
-            for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
-            {
-                event->queue_states[i][j] = queues[i].times[queues[i].customers];
-            }
-        }
         
         // Aumenta tamanho da fila na simulação e no evento
         q->customers++;
@@ -203,25 +202,15 @@ void arrival(event_entry *event, queue *q)
         // Se existe atendente livre, entra e adiciona ao escalonador uma troca de fila
         if (q->customers <= q->num_servers)
         {
-            add_to_scheduler(EXCHANGE, q->min_service, q->max_service); // TODO: Verificar se são estes os valores de troca
+            add_to_scheduler(EXCHANGE, q->min_service, q->max_service);
         }
     }
     else
     {
         // Caso não exista espaço a unidade é perdida
-        // incrementa contador de loss e muda tipo para impressão posterior dos eventos
+        // Incrementa contador de loss e ativa boolean indicando loss
         q->loss++;
-        event->entry_type = LOSS;
-        
-        // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-        for (uint64_t i = 0; i < NUM_QUEUES; i++)
-        {
-            queues[i].times[queues[i].customers] += added_time;
-            for (uint64_t j = 0; j < MAX_QUEUE_STATE; j++)
-            {
-                event->queue_states[i][j] = queues[i].times[queues[i].customers];
-            }
-        }        
+        event->b_loss = true;    
     }
 
     event->queue_sizes[queue_index] = q->customers;
@@ -260,7 +249,7 @@ void service(event_entry *event, queue *q)
     q->customers--;
     event->queue_sizes[queue_index] = q->customers;
 
-    // Se saiu da fila, verifica se há alguém na lista de espera para ser atendido e agendar nova saída
+    // Verifica se há alguém na lista de espera para ser atendido e agendar nova saída
     if (q->customers >= q->num_servers)
     {
         add_to_scheduler(SERVICE, q->min_service, q->max_service);
@@ -298,7 +287,7 @@ void exchange_queue(event_entry *event, queue *queue_from, queue *queue_to)
     queue_from->customers--;
     event->queue_sizes[queue_from_index] = queue_from->customers;
 
-    // Se saiu da fila, verifica se há alguém na lista de espera para agendar nova troca de fila TODO: Não é exatamente isso
+    // Verifica se há alguém na lista de espera para agendar nova troca de fila
     if (queue_from->customers >= queue_from->num_servers)
     {
         add_to_scheduler(EXCHANGE, queue_from->min_service, queue_from->max_service);
@@ -313,15 +302,15 @@ void exchange_queue(event_entry *event, queue *queue_from, queue *queue_to)
         // Se existe atendente livre, entra e adiciona ao escalonador uma nova saída
         if (queue_to->customers <= queue_to->num_servers)
         {
-            add_to_scheduler(SERVICE, queue_to->min_service, queue_to->max_service); // TODO: Verificar se são estes os valores de troca
+            add_to_scheduler(SERVICE, queue_to->min_service, queue_to->max_service);
         }
     }
     else
     {
         // Caso não exista espaço a unidade é perdida
-        // Volta para o tempo anterior, incrementa contador de loss e muda tipo para impressão posterior dos eventos
+        // Incrementa contador de loss e ativa boolean indicando loss
         queue_to->loss++;
-        event->entry_type = LOSS;
+        event->b_loss = true;
     }
     event->queue_sizes[queue_to_index] = queue_to->customers;
 }
@@ -329,28 +318,38 @@ void exchange_queue(event_entry *event, queue *queue_from, queue *queue_to)
 // Imprime entrada da lista de eventos
 void print_chronological_entry(event_entry *entry)
 {
-    bool b_loss = false;
-
     printf("(%-7lu) ", entry->index);
-    switch (entry->entry_type)
+
+    if (entry->b_loss)
     {
-        case NONE:
-            printf("   -    ");
-            break;
-        case ARRIVAL:
-            printf("ARRIVAL ");
-            break;
-        case SERVICE:
-            printf("SERVICE ");
-            break;
-        case EXCHANGE:
-            printf("EXCHANGE");
-            break;
-        case LOSS:
-            b_loss = true;
-            printf("  LOSS  ");
-            break;
+        if (entry->entry_type == ARRIVAL)
+        {
+            printf("AR.");
+        }
+        else if (entry->entry_type == EXCHANGE)
+        {
+            printf("EX.");
+        }
+        printf(" LOSS");
     }
+    else
+    {
+        switch (entry->entry_type)
+        {
+            case NONE:
+                printf("   -    ");
+                break;
+            case ARRIVAL:
+                printf("ARRIVAL ");
+                break;
+            case SERVICE:
+                printf("SERVICE ");
+                break;
+            case EXCHANGE:
+                printf("EXCHANGE");
+                break;
+        }
+    }    
 
     printf(" || %15f ||", entry->time);
 
@@ -364,7 +363,7 @@ void print_chronological_entry(event_entry *entry)
         printf("|");
     }
 
-    if (b_loss)
+    if (entry->b_loss)
     {
         printf(" LOST UNIT!");
     }
@@ -375,38 +374,48 @@ void print_chronological_entry(event_entry *entry)
 // Imprime entrada da lista de eventos
 void print_scheduled_entry(event_entry *entry)
 {
-    bool b_loss = false;
-
     // Strikethrough no texto caso tenha sido removido
     if (entry->b_removed) { printf ("\e[9m"); }
 
     printf("(%-7lu) ", entry->index);
     
-    switch (entry->entry_type)
+    if (entry->b_loss)
     {
-        case NONE:
-            printf("   -    ");
-            break;
-        case ARRIVAL:
-            printf("ARRIVAL ");
-            break;
-        case SERVICE:
-            printf("SERVICE ");
-            break;
-        case EXCHANGE:
-            printf("EXCHANGE");
-            break;
-        case LOSS:
-            b_loss = true;
-            printf("  LOSS  "); // TODO: Verificar como mostrar também se foi exchange ou arrival
-            break;
+        if (entry->entry_type == ARRIVAL)
+        {
+            printf("AR.");
+        }
+        else if (entry->entry_type == EXCHANGE)
+        {
+            printf("EX.");
+        }
+        printf(" LOSS");
     }
+    else
+    {
+        switch (entry->entry_type)
+        {
+            case NONE:
+                printf("   -    ");
+                break;
+            case ARRIVAL:
+                printf("ARRIVAL ");
+                break;
+            case SERVICE:
+                printf("SERVICE ");
+                break;
+            case EXCHANGE:
+                printf("EXCHANGE");
+                break;
+        }
+    }
+    
     printf(" || %15f || %10f ||", entry->time, entry->draw);
 
     // Strikethrough no texto caso tenha sido removido
     printf("\e[m");    
 
-    if (b_loss)
+    if (entry->b_loss)
     {
         printf(" LOST UNIT!");
     }
@@ -422,8 +431,8 @@ void print_queue_state_probability_calc()
         {
             printf("%5lu: %15f (%10f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
         }
-        printf(" Loss: %15lu\n", queues[i].loss);
-        printf("TOTAL: %15f (%10f%%)\n\n", current_time, 100.0);
+        printf("TOTAL: %15f (%10f%%)\n", current_time, 100.0);
+        printf(" Loss: %6lu / %6lu (%10f%%)\n\n", queues[i].loss, (chronological_events_count+1), (double)queues[i].loss/(chronological_events_count+1)*100);
     }
 }
 
@@ -438,7 +447,8 @@ int main(void)
                                             .index = (events_count + 1),
                                             .time = queues[0].first_arrival,
                                             .draw = queues[0].first_arrival,
-                                            .b_removed=false
+                                            .b_removed=false,
+                                            .b_loss = false
                                         };
     
     event_entry *new_event = &events[events_count];
