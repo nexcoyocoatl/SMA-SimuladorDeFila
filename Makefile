@@ -7,7 +7,7 @@ CFLAGS = -std=c99 -O3
 DBGFLAGS = -Wall -Werror -pedantic #-g
 LDFLAGS =
 CC = gcc
-EXEC = 
+EXEC =
 
 ifdef OS
    BIN = simulate_queue.exe
