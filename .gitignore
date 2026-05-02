@@ -54,3 +54,9 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+*.png
+read_file.c
+string_t.c
+simulador_professor/
+model.yml

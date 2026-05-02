@@ -3,8 +3,8 @@
 SRC_DIR = src/
 SRC = simulate_queue.c
 OBJ = $(addprefix $(SRC_DIR),$(SRC:.c=.o))
-CFLAGS = -std=c99 -O3
-DBGFLAGS = -Wall -Werror -pedantic #-g
+CFLAGS = -std=c99 -O0
+DBGFLAGS = -Wall -Werror -pedantic -g
 LDFLAGS =
 CC = gcc
 EXEC =
@@ -21,6 +21,9 @@ else
 	   EXEC = ./
    endif
 endif
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(DBGFLAGS) -c $< -o $@
 
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) $(LDFLAGS) $(DBGFLAGS) -o $(BIN)

@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "macro_dynarray.h"
+#include "macro_fixedynarray.h"
 
 // TODO: Documentação
 // TODO: Leitura .yml
@@ -27,7 +27,7 @@ typedef struct {
     double max_arrival;                                     // Número máximo da chegada
     double min_service;                                     // Número mínimo da saída
     double max_service;                                     // Número máximo da saída
-    dynarray(double) times;                                 // Tempos acumulados para cada estado da fila
+    fixedynarray(double) times;                                 // Tempos acumulados para cada estado da fila
     bool b_first_queue;                                     // Boolean
 } queue;
 
@@ -38,8 +38,8 @@ typedef struct {                                            // Struct de entrada
     uint64_t index;                                         // Número índice da entrada
     double time;                                            // Tempo que será executado
     double draw;                                            // Sorteio do RNG
-    dynarray(uint64_t) queue_sizes;                         // Tamanhos das filas
-    dynarray(dynarray(double)) queue_states;                // Estados das fila (tempo total para cada estado de cada fila)
+    fixedynarray(uint64_t) queue_sizes;                         // Tamanhos das filas
+    fixedynarray(fixedynarray(double)) queue_states;                // Estados das fila (tempo total para cada estado de cada fila)
     bool b_removed;                                         // Para indicar se já foi utilizado e removido
     bool b_loss;                                            // Para indicar se houve uma perda de unidade neste evento
 } event_entry;
@@ -47,8 +47,8 @@ typedef struct {                                            // Struct de entrada
 bool b_finished = false;                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 uint64_t num_queues = 2;                                        // Número de filas
-// dynarray(uint64_t) queue_capacities; // TODO: Necessário?                                // Capacidade máxima da fila 1
-uint64_t max_num_rng = 100000;                                 // Número de números pseudoaleatórios a serem calculados
+// fixedynarray(uint64_t) queue_capacities; // TODO: Necessário?                                // Capacidade máxima da fila 1
+uint64_t max_num_rng = 10;                                 // Número de números pseudoaleatórios a serem calculados
 // uint64_t max_queue_state = 0; // LARGEST_QUEUE_CAPACITY+1;                  // Número máximo de estados da fila (Capacidade da fila maior + 1)
 
 // Tempo e RNG da simulação
@@ -57,15 +57,10 @@ uint64_t rng_count = 0;                                     // Contador de núme
 uint64_t previous = 4651815687;                             // Último número RNG computado, inicializado aqui com o seed
 
 // Listas dinâmicas de filas e eventos
-dynarray(queue) queues;                                     // Array de filas da simulação
-dynarray(event_entry) events;                               // Lista de eventos em ordem de criação
-
-// TODO: Tirar os counters
-uint64_t events_count = 0;                                  // Contador da lista de eventos em ordem de criação
-dynarray(event_entry *) chronological_events;               // Lista de pointers de eventos em ordem de execução
-uint64_t chronological_events_count = 0;                    // Contador da lista de pointers de eventos em ordem de execução
-dynarray(event_entry *) current_scheduled_entries;          // Lista de pointers de eventos não executadas do escalonador
-uint64_t current_scheduled_entries_count = 0;               // Contador da lista de pointers de eventos ainda não executadas do escalonador
+fixedynarray(queue) queues = NULL;                              // Array de filas da simulação
+fixedynarray(event_entry) events = NULL;                        // Lista de eventos em ordem de criação
+fixedynarray(uint64_t) chronological_events_indexes = NULL;     // Lista de índices de eventos em ordem de execução
+fixedynarray(uint64_t) current_scheduled_entries_indexes = NULL;// Lista de índices de eventos não executadas do escalonador
 
 void setup();
 int compare_entries_by_time_asc(const void *a, const void *b);
@@ -74,9 +69,9 @@ float next_random();
 double calculate_draw(uint64_t min, uint64_t max);
 // void add_to_scheduler(enum EntryType type, double a, double b);
 void add_to_scheduler(enum EntryType type, queue *q);
-void arrival(event_entry *event);
-void service(event_entry *event);
-void calculate_service_outcome(event_entry *entry);
+void arrival(uint64_t event_index);
+void service(uint64_t event_index);
+void calculate_service_outcome(uint64_t event_index);
 // void exchange_queue(event_entry *event);
 void print_chronological_entry(event_entry *entry);
 void print_scheduled_entry(event_entry *entry);
@@ -89,14 +84,14 @@ void setup()
     // num_queues = ?;
     // max_num_rng = ?;
 
-    dynarray_init_n(&queues, num_queues);
-    dynarray_init_n(&events, max_num_rng+1);
-    dynarray_init_n(&chronological_events, max_num_rng+1);
-    dynarray_init_n(&current_scheduled_entries, max_num_rng+1);
+    fixedynarray_init(&queues, num_queues);
+    fixedynarray_init(&events, max_num_rng+1);
+    fixedynarray_init(&chronological_events_indexes, max_num_rng+1);
+    fixedynarray_init(&current_scheduled_entries_indexes, max_num_rng+1);
 
     // TODO: código do escopo abaixo será removido e receberá do .yml
     {
-    queues[0] = (queue){
+    fixedynarray_push_last(&queues, ((queue){
             .index = 0,
             .b_first_queue = true,
             .num_servers = 2,
@@ -109,9 +104,9 @@ void setup()
             .max_arrival = 4.0,
             .min_service = 3.0,
             .max_service = 4.0
-        };
+        }));
 
-    queues[1] = (queue){
+     fixedynarray_push_last(&queues, ((queue){
             .index = 1,
             .b_first_queue = false,
             .num_servers = 1,
@@ -124,18 +119,18 @@ void setup()
             .max_arrival = 0.0,
             .min_service = 2.0,
             .max_service = 3.0
-        };
+        }));
     }
 
     // Popula filas
-    for (uint64_t i = 0; i < num_queues; i++)
+    for (uint64_t i = 0; i < fixedynarray_size(&queues); i++)
     {
         // uint64_t queue_capacity = ?;  // TODO: receberá do .yml
         // queues[i].capacity = queue_capacity; 
 
         uint64_t queue_capacity = queues[i].capacity; // TODO: remover quando o código de leitura do .yml estiver funcionando
 
-        dynarray_init_n(&(queues[i].times), queue_capacity+1);
+        fixedynarray_init(&(queues[i].times), queue_capacity+1);
 
         for (uint64_t j = 0; j < queue_capacity+1; j++)
         {
@@ -147,10 +142,10 @@ void setup()
 // Função auxiliar do quicksort para ordenar entradas de menor para maior tempo no escalonador
 int compare_entries_by_time_asc(const void *a, const void *b)
 {
-    float entry_a = ((*(event_entry **)a))->time;
-    float entry_b = ((*(event_entry **)b))->time;
+    double time_entry_a = events[*(const uint64_t *)a].time;
+    double time_entry_b = events[*(const uint64_t *)b].time;
 
-    return COMPARE_ASC(entry_a, entry_b);
+    return COMPARE_ASC(time_entry_a, time_entry_b);
 }
 
 // Gerador de número aleatório a partir de congruência linear
@@ -186,7 +181,7 @@ void add_to_scheduler(enum EntryType type, queue *q)
 {
     if (b_finished) { return; }
 
-    double new_draw;
+    double new_draw = 0.0;
 
     if (type == ARRIVAL)
     {
@@ -197,28 +192,28 @@ void add_to_scheduler(enum EntryType type, queue *q)
         new_draw = calculate_draw( q->min_service, q->max_service );
     }
 
-    events[events_count] = (event_entry){
-                                            .entry_type = type,
-                                            .queue_from = q,
-                                            .queue_to = NULL,
-                                            .index = (events_count + 1),
-                                            .time = (current_time + new_draw),
-                                            .draw = new_draw,
-                                            .b_removed = false,
-                                            .b_loss = false
-                                        };
+    fixedynarray_push_last(&events, ((event_entry) {
+                        .entry_type = type,
+                        .queue_from = q,
+                        .queue_to = NULL,
+                        .index = (fixedynarray_size(&events)),
+                        .time = (current_time + new_draw),
+                        .draw = new_draw,
+                        .b_removed = false,
+                        .b_loss = false
+                    }));
     
-    event_entry *new_event = &events[events_count];
+    event_entry *new_event = &fixedynarray_last(&events);
 
     // Inicializa arrays do novo evento
     // TODO: Inicializa em 0 mesmo?!
-    dynarray_init_n(&(new_event->queue_sizes), num_queues);
-    dynarray_init_n(&(new_event->queue_states), num_queues);
+    fixedynarray_init(&(new_event->queue_sizes), num_queues);
+    fixedynarray_init(&(new_event->queue_states), num_queues);
     for (uint64_t i = 0; i < num_queues; i++)
     {
         new_event->queue_sizes[i] = 0;
 
-        dynarray_init_n(&(new_event->queue_states[i]), queues[i].capacity+1);
+        fixedynarray_init(&(new_event->queue_states[i]), queues[i].capacity+1);
 
         for (uint64_t j = 0; j < queues[i].capacity+1; j++)
         {
@@ -226,12 +221,13 @@ void add_to_scheduler(enum EntryType type, queue *q)
         }
     }
 
-    current_scheduled_entries[current_scheduled_entries_count++] = &events[events_count++];
+    fixedynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
 }
 
 // Função de entrada de uma unidade na fila
-void arrival(event_entry *event)
+void arrival(uint64_t event_index)
 {
+    event_entry *event = &events[event_index];
     queue *q = event->queue_from;
     uint64_t queue_index = q->index;
 
@@ -239,7 +235,7 @@ void arrival(event_entry *event)
     event->b_removed = true;
 
     // Adiciona à lista de eventos por ordem de execução
-    chronological_events[chronological_events_count++] = event;
+    fixedynarray_push_last(&chronological_events_indexes, event->index);
 
     // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
     double previous_time = current_time;
@@ -284,8 +280,9 @@ void arrival(event_entry *event)
 }
 
 // Função de saída de uma unidade na fila
-void service(event_entry *event)
+void service(uint64_t event_index)
 {
+    event_entry *event = &events[event_index];
     queue *q = event->queue_from;
     uint64_t queue_index = q->index;
 
@@ -293,7 +290,7 @@ void service(event_entry *event)
     event->b_removed = true;
 
     // Adiciona à lista de eventos por ordem de execução
-    chronological_events[chronological_events_count++] = event;
+    fixedynarray_push_last(&chronological_events_indexes, event->index);
 
     // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
     double previous_time = current_time;
@@ -312,22 +309,23 @@ void service(event_entry *event)
 
     // É ATENDIDO AQUI! Pode ir para outra fila, sair, ou voltar para a mesma fila.
     // Cálculo nesta função
-    calculate_service_outcome(event);
+    calculate_service_outcome(event_index);
 
     // Atualiza número de unidades no evento
     event->queue_sizes[queue_index] = q->customers;
 }
 
-void calculate_service_outcome(event_entry *entry)
+void calculate_service_outcome(uint64_t event_index)
 {
+    event_entry *event = &events[event_index];
     bool b_exit = true;
-    queue *queue_from = entry->queue_from;
+    queue *queue_from = event->queue_from;
 
     // Verifica se é uma saída
     if (queue_from->exchange_to != -1)
     {
         // Se não for uma saída, muda tipo para passagem
-        entry->entry_type = EXCHANGE;
+        event->entry_type = EXCHANGE;
         b_exit = false;
     }
     
@@ -367,7 +365,7 @@ void calculate_service_outcome(event_entry *entry)
 // Imprime entrada da lista de eventos
 void print_chronological_entry(event_entry *entry)
 {
-    printf("(%5lu) ", entry->index);
+    printf("(%5lu) ", entry->index + 1);
 
     if (entry->b_loss)
     {
@@ -401,10 +399,10 @@ void print_chronological_entry(event_entry *entry)
 
     for (uint64_t i = 0; i < num_queues; i++)
     {
-        printf(" %8lu |", entry->queue_sizes[0]);
+        printf(" %8lu |", entry->queue_sizes[i]);
         for (uint64_t j = 0; j < queues[i].capacity+1; j++)
         {
-            printf(" %13f |", entry->queue_states[0][j]);
+            printf(" %13f |", entry->queue_states[i][j]);
         }
         printf("|");
     }
@@ -421,9 +419,9 @@ void print_chronological_entry(event_entry *entry)
 void print_scheduled_entry(event_entry *entry)
 {
     // Strikethrough no texto caso tenha sido removido
-    if (entry->b_removed) { printf ("\e[9m"); }
+    if (entry->b_removed) { printf ("\x1b[9m"); }
 
-    printf("(%5lu) ", entry->index);
+    printf("(%5lu) ", entry->index + 1);
 
     if (entry->b_loss)
     {
@@ -456,7 +454,7 @@ void print_scheduled_entry(event_entry *entry)
     printf(" || %13f || %8f ||", entry->time, entry->draw);
 
     // Strikethrough no texto caso tenha sido removido
-    printf("\e[m");
+    printf("\x1b[m");
 
     if (entry->b_loss)
     {
@@ -475,7 +473,7 @@ void print_queue_state_probability_calc()
             printf("%5lu: %13f (%8f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
         }
         printf("TOTAL: %13f (%8f%%)\n", current_time, 100.0);
-        printf(" Loss: %6lu / %6lu (%8f%%)\n\n", queues[i].loss, (chronological_events_count+1), (double)queues[i].loss/(chronological_events_count+1)*100);
+        printf(" Loss: %6lu / %6lu (%8f%%)\n\n", queues[i].loss, (fixedynarray_size(&chronological_events_indexes)+1), (double)queues[i].loss/(fixedynarray_size(chronological_events_indexes)+1)*100);
     }
 }
 
@@ -483,29 +481,28 @@ int main(void)
 {
     setup();
 
-    // Cria uma primeira entrada no escalonador e envia na função de entrada na fila 1 para início da simulação
-    // Esta primeira entrada no escalonador será logo descartada e sobreescrita, e por isso não incrementa o schedule_entries_count
-    events[events_count] = (event_entry){
-                                            .entry_type = ARRIVAL,
-                                            .queue_from = &queues[0],
-                                            .queue_to = NULL,
-                                            .index = (events_count + 1),
-                                            .time = queues[0].first_arrival,
-                                            .draw = queues[0].first_arrival,
-                                            .b_removed=false,
-                                            .b_loss = false
-                                        };
+    // Cria uma primeira entrada no escalonador e envia na função de entrada na fila 1 para início da simulação    
+    fixedynarray_push_last(&events, ((event_entry) {
+                        .entry_type = ARRIVAL,
+                        .queue_from = &queues[0],
+                        .queue_to = NULL,
+                        .index = (fixedynarray_size(&events)),
+                        .time = queues[0].first_arrival,
+                        .draw = queues[0].first_arrival,
+                        .b_removed = false,
+                        .b_loss = false
+                    }));
 
-    event_entry *new_event = &events[events_count];
+    event_entry *new_event = &(events[0]);
 
     // Inicializa arrays do novo evento em 0
-    dynarray_init_n(&(new_event->queue_sizes), num_queues);
-    dynarray_init_n(&(new_event->queue_states), num_queues);
+    fixedynarray_init(&(new_event->queue_sizes), num_queues);
+    fixedynarray_init(&(new_event->queue_states), num_queues);
     for (uint64_t i = 0; i < num_queues; i++)
     {
         new_event->queue_sizes[i] = 0;
 
-        dynarray_init_n(&(new_event->queue_states[i]), queues[i].capacity+1);
+        fixedynarray_init(&(new_event->queue_states[i]), queues[i].capacity+1);
 
         for (uint64_t j = 0; j < queues[i].capacity+1; j++)
         {
@@ -514,31 +511,27 @@ int main(void)
     }
 
     // Adiciona para a lista de eventos escalonados
-    current_scheduled_entries[current_scheduled_entries_count] = &events[events_count++]; // Não aumenta o contador de escalonados porque será removido logo abaixo
+    fixedynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
 
-    arrival(current_scheduled_entries[0]);
+    arrival(current_scheduled_entries_indexes[0]);
 
     while (!b_finished)
     {
         // Ordena entradas do escalonador por tempo
-        qsort(current_scheduled_entries, current_scheduled_entries_count, sizeof(event_entry *), compare_entries_by_time_asc);
+        qsort(current_scheduled_entries_indexes, fixedynarray_size(&current_scheduled_entries_indexes), sizeof(uint64_t), compare_entries_by_time_asc);
 
-        event_entry *entry = current_scheduled_entries[0];
+        uint64_t event_index;
+        fixedynarray_pop_first(&current_scheduled_entries_indexes, event_index);
+        event_entry *entry = &events[event_index];
+
         if (entry->entry_type == ARRIVAL)
         {
-            arrival(entry);
+            arrival(event_index);
         }
         else if (entry->entry_type == SERVICE)
         {
-            service(entry);
+            service(event_index);
         }
-
-        // Após ser utilizado, remove o evento do início da lista de escalonados e faz shuffle de todos para a esquerda
-        for (uint64_t i = 1; i < current_scheduled_entries_count; i++)
-        {
-            current_scheduled_entries[i-1] = current_scheduled_entries[i];
-        }
-        current_scheduled_entries_count--;
     }
 
     if (DEBUG)
@@ -572,13 +565,13 @@ int main(void)
         printf("\n");
 
         // Imprime os próximos
-        for (uint64_t i = 0; i < chronological_events_count; i++)
+        for (uint64_t i = 0; i < fixedynarray_size(&chronological_events_indexes); i++)
         {
-            print_chronological_entry(chronological_events[i]);
+            print_chronological_entry(&events[chronological_events_indexes[i]]);
         }
 
         printf("\nScheduled Events:\n       TYPE      ||     TIME      ||   DRAW   ||\n");
-        for (uint64_t i = 0; i < events_count; i++)
+        for (uint64_t i = 0; i < fixedynarray_size(&events); i++)
         {
             print_scheduled_entry(&events[i]);
         }
@@ -588,24 +581,35 @@ int main(void)
     print_queue_state_probability_calc();
 
     // Libera memória das listas dinâmicas
-    for(uint64_t i = 0; i < num_queues; i++)
+    if (queues != NULL)
     {
-        dynarray_free(&(queues[i].times));
-    }
-
-    for(uint64_t i = 0; i < max_num_rng+1; i++)
-    {
-        dynarray_free(&(events[i].queue_sizes));
-        for(uint64_t j = 0; j < num_queues; j++)
+        for(uint64_t i = 0; i < fixedynarray_capacity(&queues); i++)
         {
-            dynarray_free_all(&(events[i].queue_states), free);
+            fixedynarray_free(&(queues[i].times));
         }
     }
 
-    dynarray_free(&queues);
-    dynarray_free(&events);
-    dynarray_free(&chronological_events);
-    dynarray_free(&current_scheduled_entries);
+    if (events != NULL)
+    {
+        for (uint64_t i = 0; i < fixedynarray_capacity(&events); i++)
+        {    
+            fixedynarray_free(&(events[i].queue_sizes));
+
+            if (events[i].queue_states != NULL)
+            {
+                for (uint64_t j = 0; j < fixedynarray_capacity(events[i].queue_states); j++)
+                {
+                    fixedynarray_free(&(events[i].queue_states[j]));
+                }
+                fixedynarray_free(&(events[i].queue_states));
+            }
+        }
+    }
+
+    fixedynarray_free(&queues);
+    fixedynarray_free(&events);
+    fixedynarray_free(&chronological_events_indexes);
+    fixedynarray_free(&current_scheduled_entries_indexes);
 
     return 0;
 }
