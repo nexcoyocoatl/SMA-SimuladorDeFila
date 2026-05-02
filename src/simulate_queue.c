@@ -27,7 +27,7 @@ typedef struct {
     double max_arrival;                                     // Número máximo da chegada
     double min_service;                                     // Número mínimo da saída
     double max_service;                                     // Número máximo da saída
-    fixedynarray(double) times;                                 // Tempos acumulados para cada estado da fila
+    fixedynarray(double) times;                             // Tempos acumulados para cada estado da fila
     bool b_first_queue;                                     // Boolean
 } queue;
 
@@ -38,8 +38,8 @@ typedef struct {                                            // Struct de entrada
     uint64_t index;                                         // Número índice da entrada
     double time;                                            // Tempo que será executado
     double draw;                                            // Sorteio do RNG
-    fixedynarray(uint64_t) queue_sizes;                         // Tamanhos das filas
-    fixedynarray(fixedynarray(double)) queue_states;                // Estados das fila (tempo total para cada estado de cada fila)
+    fixedynarray(uint64_t) queue_sizes;                     // Tamanhos das filas
+    fixedynarray(fixedynarray(double)) queue_states;        // Estados das filas (tempo total para cada estado de cada fila)
     bool b_removed;                                         // Para indicar se já foi utilizado e removido
     bool b_loss;                                            // Para indicar se houve uma perda de unidade neste evento
 } event_entry;
@@ -179,6 +179,7 @@ double calculate_draw(uint64_t min, uint64_t max)
 // Adiciona nova entrada no escalonador
 void add_to_scheduler(enum EntryType type, queue *q)
 {
+    // TODO: remover
     if (b_finished) { return; }
 
     double new_draw = 0.0;
@@ -510,9 +511,6 @@ int main(void)
         }
     }
 
-    // Adiciona para a lista de eventos escalonados
-    fixedynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
-
     arrival(current_scheduled_entries_indexes[0]);
 
     while (!b_finished)
@@ -580,34 +578,34 @@ int main(void)
     printf("\nProbabilities of each queue state:\n");
     print_queue_state_probability_calc();
 
-    // Libera memória das listas dinâmicas
-    if (queues != NULL)
-    {
-        for(uint64_t i = 0; i < fixedynarray_capacity(&queues); i++)
-        {
-            fixedynarray_free(&(queues[i].times));
-        }
-    }
-
+    // Libera memória das listas dinâmicas de capacidade fixa
     if (events != NULL)
     {
         for (uint64_t i = 0; i < fixedynarray_capacity(&events); i++)
-        {    
+        {
             fixedynarray_free(&(events[i].queue_sizes));
 
             if (events[i].queue_states != NULL)
             {
-                for (uint64_t j = 0; j < fixedynarray_capacity(events[i].queue_states); j++)
+                for (uint64_t j = 0; j < fixedynarray_capacity(&(events[i].queue_states)); j++)
                 {
                     fixedynarray_free(&(events[i].queue_states[j]));
                 }
                 fixedynarray_free(&(events[i].queue_states));
             }
         }
+        fixedynarray_free(&events);
     }
 
-    fixedynarray_free(&queues);
-    fixedynarray_free(&events);
+    if (queues != NULL)
+    {
+        for (uint64_t i = 0; i < fixedynarray_capacity(&queues); i++)
+        {
+            fixedynarray_free(&(queues[i].times));
+        }
+        fixedynarray_free(&queues);
+    }
+
     fixedynarray_free(&chronological_events_indexes);
     fixedynarray_free(&current_scheduled_entries_indexes);
 
