@@ -67,6 +67,7 @@ double linear_congruential_generator(uint64_t a, uint64_t c, uint64_t M);
 float next_random();
 double calculate_draw(uint64_t min, uint64_t max);
 void add_to_scheduler(enum EntryType type, queue *q);
+void update_event_queues(event_entry *event, double added_time);
 void arrival(uint64_t event_index);
 void service(uint64_t event_index);
 void calculate_service_outcome(uint64_t event_index);
@@ -112,7 +113,6 @@ void setup()
 
      queues[1] = (queue){
             .index = 1,
-            // .b_first_queue = false,
             .b_infinite_capacity = false,
             .num_servers = 2,
             .capacity = 5,
@@ -137,7 +137,6 @@ void setup()
 
         queues[2] = (queue){
             .index = 2,
-            // .b_first_queue = false,
             .b_infinite_capacity = false,
             .num_servers = 2,
             .capacity = 10,
@@ -266,12 +265,42 @@ void add_to_scheduler(enum EntryType type, queue *q)
     dynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
 }
 
+// Acrescenta tempo às filas globais e atualiza filas do evento em execução
+void update_event_queues(event_entry *event, double added_time)
+{
+    for (uint64_t i = 0; i < num_queues; i++)
+    {
+        queues[i].times[queues[i].customers] += added_time;
+
+        // Verifica se o buffer de queue_states é grande o suficiente
+        uint64_t current_queue_capacity = queues[i].capacity + 1;
+        {
+            if (event->queue_states[i] == NULL)
+            {
+                dynbuffer_init_n(&(event->queue_states[i]), current_queue_capacity);
+            }
+            else if (dynbuffer_capacity(&(event->queue_states[i])) < current_queue_capacity)
+            {
+                dynbuffer_resize(&(event->queue_states[i]), current_queue_capacity);
+            }
+        }
+
+        // Atualiza tamanho das filas no tempo de execução do evento com as filas globais atuais
+        event->queue_sizes[i] = queues[i].customers;
+        
+        // Atualiza estado de todas as filas no tempo de execução do evento com as filas globais atuais
+        for (uint64_t j = 0; j < current_queue_capacity; j++)
+        {
+            event->queue_states[i][j] = queues[i].times[j];
+        }
+    }
+}
+
 // Função de entrada de uma unidade na fila
 void arrival(uint64_t event_index)
 {
     event_entry *event = &events[event_index];
     queue *q = event->queue_from;
-    uint64_t queue_index = q->index;
 
     // Indica que foi removido dos eventos escalonados
     event->b_removed = true;
@@ -285,29 +314,7 @@ void arrival(uint64_t event_index)
     double added_time = current_time - previous_time;
 
     // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    for (uint64_t i = 0; i < num_queues; i++)
-    {
-        queues[i].times[queues[i].customers] += added_time;
-
-        // Verifica se o buffer de queue_states é grande o suficiente
-        uint64_t required_capacity = queues[i].capacity + 1;
-
-        if (event->queue_states[i] == NULL)
-        {
-            dynbuffer_init_n(&(event->queue_states[i]), required_capacity);
-        }
-        else if (dynbuffer_capacity(&(event->queue_states[i])) < required_capacity)
-        {
-            dynbuffer_resize(&(event->queue_states[i]), required_capacity);
-        }
-
-        event->queue_sizes[i] = queues[i].customers;
-        
-        for (uint64_t j = 0; j < required_capacity; j++)
-        {
-            event->queue_states[i][j] = queues[i].times[j];
-        }
-    }
+    update_event_queues(event, added_time);
 
     // Verifica se existe espaço na fila
     if (q->b_infinite_capacity || q->customers < q->capacity)
@@ -341,8 +348,6 @@ void arrival(uint64_t event_index)
         event->b_loss = true;
     }
 
-    event->queue_sizes[queue_index] = q->customers;
-
     // Agenda nova chegada de outra unidade
     add_to_scheduler(ARRIVAL, q);
 }
@@ -352,7 +357,6 @@ void service(uint64_t event_index)
 {
     event_entry *event = &events[event_index];
     queue *q = event->queue_from;
-    uint64_t queue_index = q->index;
 
     // Indica que foi removido dos eventos escalonados
     event->b_removed = true;
@@ -365,37 +369,19 @@ void service(uint64_t event_index)
     current_time = event->time;
     double added_time = current_time - previous_time;
 
-    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    for (uint64_t i = 0; i < num_queues; i++)
+    // Diminui tamanho da fila origem (caso seja também de destino será incrementada depois)
+    // Verifica se há alguém na lista de espera de origem para ser atendido e agendar nova saída
+    q->customers--;
+    if (q->customers >= q->num_servers)
     {
-        queues[i].times[queues[i].customers] += added_time;
-
-        // Verifica se o buffer de queue_states é grande o suficiente
-        uint64_t required_capacity = queues[i].capacity + 1;
-
-        if (event->queue_states[i] == NULL)
-        {
-            dynbuffer_init_n(&(event->queue_states[i]), required_capacity);
-        }
-        else if (dynbuffer_capacity(&(event->queue_states[i])) < required_capacity)
-        {
-            dynbuffer_resize(&(event->queue_states[i]), required_capacity);
-        }
-
-        event->queue_sizes[i] = queues[i].customers;
-        
-        for (uint64_t j = 0; j < required_capacity; j++)
-        {
-            event->queue_states[i][j] = queues[i].times[j];
-        }
+        add_to_scheduler(SERVICE, q);
     }
 
-    // É ATENDIDO AQUI! Pode ir para outra fila, sair, ou voltar para a mesma fila.
-    // Cálculo nesta função
-    calculate_service_outcome(event_index);
+    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+    update_event_queues(event, added_time);
 
-    // Atualiza número de unidades no evento
-    event->queue_sizes[queue_index] = q->customers;
+    // É ATENDIDO AQUI! Pode ir para outra fila, sair, ou voltar para a mesma fila.
+    calculate_service_outcome(event_index);
 }
 
 void calculate_service_outcome(uint64_t event_index)
@@ -429,14 +415,6 @@ void calculate_service_outcome(uint64_t event_index)
     }
     
     queue *queue_to = &(queues[exit_index]);
-    
-    // Diminui tamanho da fila origem (caso seja também de destino será incrementada depois)
-    // Verifica se há alguém na lista de espera de origem para ser atendido e agendar nova saída
-    queue_from->customers--;
-    if (queue_from->customers >= queue_from->num_servers)
-    {
-        add_to_scheduler(SERVICE, queue_from);
-    }
 
     if (!b_exit)
     {
@@ -561,13 +539,29 @@ void print_queue_state_probability_calc()
     {
         printf("Queue %lu:\n", i+1);
 
+        printf(" Capacity:");
+        if (queues[i].b_infinite_capacity)
+        {
+            printf(" Infinite\n");
+        }
+        else
+        {
+            printf(" %-5lu\n", queues[i].capacity);
+        }
+
         // TODO: Ver se não quebra
         for (uint64_t j = 0; j < queues[i].capacity+1; j++)
         {
             printf("%5lu: %13f (%8f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
         }
         printf("TOTAL: %13f (%8f%%)\n", current_time, 100.0);
-        printf(" Loss: %6lu / %6lu (%8f%%)\n\n", queues[i].loss, (dynarray_size(&chronological_events_indexes)+1), (double)queues[i].loss/(dynarray_size(chronological_events_indexes)+1)*100);
+        uint64_t chronological_events_num = (dynarray_size(&chronological_events_indexes));
+        printf("Units: %13lu\n", chronological_events_num);
+        if (!queues[i].b_infinite_capacity)
+        {
+            printf(" Loss: %5lu / %5lu (%8f%%)\n", queues[i].loss, chronological_events_num, (double)queues[i].loss/chronological_events_num*100);
+        }
+        printf("\n");
     }
 }
 
