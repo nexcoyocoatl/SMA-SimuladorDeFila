@@ -8,72 +8,75 @@
 // TODO: Documentação
 // TODO: Leitura .yml
 
-#define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))       // Macro para funcão auxiliar de comparação entre valores do qsort
+#define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))           // Macro para funcão auxiliar de comparação entre valores do qsort
 
-#define DEBUG 0                                             // Para ativar modo debug (imprime todos os eventos)
+#define DEBUG 0                                                 // Para ativar modo debug (imprime todos os eventos)
 
-enum EntryType { ARRIVAL, SERVICE, EXCHANGE };              // Tipos de entrada na lista de eventos e escalonador (Entrada, Saída, Passagem)
+enum EntryType { ARRIVAL, SERVICE, EXCHANGE };                  // Tipos de entrada na lista de eventos e escalonador (Entrada, Saída, Passagem)
 
+// Struct da fila
 typedef struct {
-    uint64_t index;                                         // Número índice da fila
-    uint64_t num_servers;                                   // Número de atendentes
-    uint64_t capacity;                                      // Capacidade da fila, dinâmica se infinita
-    uint64_t customers;                                     // Clientes na fila
-    uint64_t loss;                                          // Unidades perdidas da fila
-    double first_arrival;                                   // Primeira chegada
-    double min_arrival;                                     // Número mínimo da chegada
-    double max_arrival;                                     // Número máximo da chegada
-    double min_service;                                     // Número mínimo da saída
-    double max_service;                                     // Número máximo da saída
-    dynbuffer(double) times;                                // Tempos acumulados para cada estado da fila
-    dynbuffer(double) exit_odds;                            // Probabilidade para cada saída
-    dynbuffer(int) exit_to;                                 // Destinos possíveis
-    bool b_infinite_capacity;                               // Indica se a fila é infinita
+    uint64_t index;                                             // Número índice da fila
+    uint64_t num_servers;                                       // Número de atendentes
+    uint64_t capacity;                                          // Capacidade da fila, dinâmica se infinita
+    uint64_t customers;                                         // Clientes na fila
+    uint64_t loss;                                              // Unidades perdidas da fila
+    double first_arrival;                                       // Primeira chegada
+    double min_arrival;                                         // Número mínimo da chegada
+    double max_arrival;                                         // Número máximo da chegada
+    double min_service;                                         // Número mínimo da saída
+    double max_service;                                         // Número máximo da saída
+    dynbuffer(double) times;                                    // Buffer dinâmico de tempos acumulados para cada estado da fila
+    dynbuffer(double) exit_odds;                                // Buffer dinâmico de probabilidades para cada saída
+    dynbuffer(int) exit_to;                                     // Buffer dinâmico de destinos possíveis
+    bool b_infinite_capacity;                                   // Indica se a fila é infinita
 } queue;
 
-typedef struct {                                            // Struct de entradas da lista de eventos
-    enum EntryType entry_type;                              // Tipo da entrada
-    queue *queue_from;                                      // Ponteiro para fila origem
-    queue *queue_to;                                        // Ponteiro para fila destino
-    uint64_t index;                                         // Número índice da entrada
-    double time;                                            // Tempo que será executado
-    double draw;                                            // Sorteio do RNG
-    dynbuffer(uint64_t) queue_sizes;                        // Tamanhos das filas
-    dynbuffer(dynbuffer(double)) queue_states;              // Estados das filas (tempo total para cada estado de cada fila)
-    bool b_removed;                                         // Para indicar se já foi utilizado e removido
-    bool b_loss;                                            // Para indicar se houve uma perda de unidade neste evento
+// Struct do evento
+typedef struct {                                                // Struct de entradas da lista de eventos
+    enum EntryType entry_type;                                  // Tipo da entrada
+    queue *queue_from;                                          // Ponteiro para fila origem
+    queue *queue_to;                                            // Ponteiro para fila destino
+    uint64_t index;                                             // Número índice da entrada
+    double time;                                                // Tempo que será executado
+    double draw;                                                // Sorteio do RNG
+    dynbuffer(uint64_t) queue_sizes;                            // Buffer dinâmico de tamanhos das filas
+    dynbuffer(dynbuffer(double)) queue_states;                  // Buffer dinâmico de estados de cada fila (tempo total de cada estado de cada fila)
+    bool b_removed;                                             // Boolean para indicar se já foi utilizado e removido
+    bool b_loss;                                                // Boolean para indicar se houve uma perda de unidade neste evento
 } event_entry;
 
-bool b_finished = false;                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
+bool b_finished = false;                                        // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 // Tempo e RNG da simulação
-double current_time = 0.0;                                  // Tempo atual da simulação (incrementa a cada evento)
-uint64_t rng_count = 0;                                     // Contador de números RNG utilizados
-uint64_t previous = 4651815687;                             // Último número RNG computado, inicializado aqui com o seed
-uint64_t max_num_rng = 100000;                               // Número de números pseudoaleatórios a serem calculados
+double current_time = 0.0;                                      // Tempo atual da simulação (incrementa a cada evento)
+uint64_t rng_count = 0;                                         // Contador de números RNG utilizados
+uint64_t previous = 4651815687;                                 // Último número RNG computado, inicializado aqui com o seed
+uint64_t max_num_rng = 100000;                                  // Número de números pseudoaleatórios a serem calculados
 
-// Buffer de filas
-uint64_t num_queues = 3;                                    // Número de filas
-dynbuffer(queue) queues = NULL;                             // Buffer de filas da simulação
+// Buffer dinâmico de filas
+uint64_t num_queues = 3;                                        // Número de filas
+dynbuffer(queue) queues = NULL;                                 // Buffer de filas da simulação
 
 // Listas dinâmicas de eventos
-dynarray(event_entry) events = NULL;                        // Lista de eventos em ordem de criação
-dynarray(uint64_t) chronological_events_indexes = NULL;     // Lista de índices de eventos em ordem de execução
-dynarray(uint64_t) current_scheduled_entries_indexes = NULL;// Lista de índices de eventos não executadas do escalonador
+dynarray(event_entry) events = NULL;                            // Lista de eventos em ordem de criação
+dynarray(uint64_t) chronological_events_indexes = NULL;         // Lista de índices de eventos em ordem de execução
+dynarray(uint64_t) current_scheduled_entries_indexes = NULL;    // Lista de índices de eventos não executadas do escalonador
 
-void setup();
-int compare_entries_by_time_asc(const void *a, const void *b);
-double linear_congruential_generator(uint64_t a, uint64_t c, uint64_t M);
-float next_random();
-double calculate_draw(uint64_t min, uint64_t max);
-void add_to_scheduler(enum EntryType type, queue *q);
-void update_event_queues(event_entry *event, double added_time);
-void arrival(uint64_t event_index);
-void service(uint64_t event_index);
-void calculate_service_outcome(uint64_t event_index);
-void print_chronological_entry(event_entry *entry);
-void print_scheduled_entry(event_entry *entry);
-void print_queue_state_probability_calc();
+// Protótipos de funções
+void setup();                                                               // Função para inicializar valores padrão e outras configurações iniciais
+int compare_entries_by_time_asc(const void *a, const void *b);              // Função auxiliar do quicksort para ordenar entradas de menor para maior tempo no escalonador
+double linear_congruential_generator(uint64_t a, uint64_t c, uint64_t M);   // Gerador de número aleatório a partir de congruência linear
+float next_random();                                                        // Cálcula próximo número aleatório com números hardcoded escolhidos para simulação
+double calculate_draw(uint64_t min, uint64_t max);                          // Faz sorteio entre dois números utilizando número aleatório
+void add_to_scheduler(enum EntryType type, queue *q);                       // Adiciona nova entrada no escalonador
+void update_event_queues(event_entry *event, double added_time);            // Acrescenta tempo às filas globais e atualiza filas do evento em execução
+void arrival(uint64_t event_index);                                         // Função de entrada de uma unidade na fila
+void service(uint64_t event_index);                                         // Função de saída de uma unidade na fila
+void calculate_service_outcome(uint64_t event_index);                       // Calcula probabilidade entre possíveis saídas e realiza a lógica de saída
+void print_chronological_entry(event_entry *entry);                         // Imprime entradas cronológicas da lista de eventos
+void print_scheduled_entry(event_entry *entry);                             // Imprime entradas escalonadas da lista de eventos
+void print_queue_state_percentage_calc();                                   // Imprime estados das filas e porcentagem
 
 // Função para inicializar valores padrão e outras configurações iniciais
 void setup()
@@ -205,7 +208,7 @@ float next_random()
     return linear_congruential_generator(a, c, M);
 }
 
-// Faz sorteio utilizando número aleatório
+// Faz sorteio entre dois números utilizando número aleatório
 double calculate_draw(uint64_t min, uint64_t max)
 {
     rng_count++;
@@ -384,6 +387,7 @@ void service(uint64_t event_index)
     calculate_service_outcome(event_index);
 }
 
+// Calcula probabilidade entre possíveis saídas e realiza a lógica de saída
 void calculate_service_outcome(uint64_t event_index)
 {
     event_entry *event = &events[event_index];
@@ -451,7 +455,7 @@ void calculate_service_outcome(uint64_t event_index)
     }
 }
 
-// Imprime entrada da lista de eventos
+// Imprime entradas cronológicas da lista de eventos
 void print_chronological_entry(event_entry *entry) {
     printf("Event %lu\n", entry->index + 1);
     printf("Type: ");
@@ -485,7 +489,7 @@ void print_chronological_entry(event_entry *entry) {
     printf("--------------------\n\n");
 }
 
-// Imprime entrada da lista de eventos
+// Imprime entradas escalonadas da lista de eventos
 void print_scheduled_entry(event_entry *entry)
 {
     // Strikethrough no texto caso tenha sido removido
@@ -533,7 +537,8 @@ void print_scheduled_entry(event_entry *entry)
     printf("\n");
 }
 
-void print_queue_state_probability_calc()
+// Imprime estados das filas e porcentagem
+void print_queue_state_percentage_calc()
 {
     for (uint64_t i = 0; i < num_queues; i++)
     {
@@ -549,7 +554,6 @@ void print_queue_state_probability_calc()
             printf(" %-5lu\n", queues[i].capacity);
         }
 
-        // TODO: Ver se não quebra
         for (uint64_t j = 0; j < queues[i].capacity+1; j++)
         {
             printf("%5lu: %13f (%8f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
@@ -658,7 +662,7 @@ int main(void)
     }
 
     printf("\nProbabilities of each queue state:\n");
-    print_queue_state_probability_calc();
+    print_queue_state_percentage_calc();
 
     // Libera memória das listas dinâmicas de capacidade fixa
     if (events != NULL)
