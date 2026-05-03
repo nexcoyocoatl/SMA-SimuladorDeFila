@@ -2,33 +2,33 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "macro_fixedynarray.h"
+#include "macro_dynarray.h"
+#include "macro_dynbuffer.h"
 
 // TODO: Documentação
 // TODO: Leitura .yml
-// TODO: Evento mantém contexto de passagem de uma fila para outra (origem/destino/exterior)
-// TODO: Probabilidade de saída para diversas filas ou exterior
 
 #define COMPARE_ASC(a, b) (((a) > (b)) - ((a) < (b)))       // Macro para funcão auxiliar de comparação entre valores do qsort
 
-#define DEBUG 1                                             // Para ativar modo debug (imprime todos os eventos)
+#define DEBUG 0                                             // Para ativar modo debug (imprime todos os eventos)
 
 enum EntryType { ARRIVAL, SERVICE, EXCHANGE };              // Tipos de entrada na lista de eventos e escalonador (Entrada, Saída, Passagem)
 
 typedef struct {
     uint64_t index;                                         // Número índice da fila
     uint64_t num_servers;                                   // Número de atendentes
-    uint64_t capacity;                                      // Capacidade da fila
+    uint64_t capacity;                                      // Capacidade da fila, dinâmica se infinita
     uint64_t customers;                                     // Clientes na fila
-    uint64_t exchange_to;                                   // Fila de destino
     uint64_t loss;                                          // Unidades perdidas da fila
     double first_arrival;                                   // Primeira chegada
     double min_arrival;                                     // Número mínimo da chegada
     double max_arrival;                                     // Número máximo da chegada
     double min_service;                                     // Número mínimo da saída
     double max_service;                                     // Número máximo da saída
-    fixedynarray(double) times;                             // Tempos acumulados para cada estado da fila
-    bool b_first_queue;                                     // Boolean
+    dynbuffer(double) times;                                // Tempos acumulados para cada estado da fila
+    dynbuffer(double) exit_odds;                            // Probabilidade para cada saída
+    dynbuffer(int) exit_to;                                 // Destinos possíveis
+    bool b_infinite_capacity;                               // Indica se a fila é infinita
 } queue;
 
 typedef struct {                                            // Struct de entradas da lista de eventos
@@ -38,41 +38,38 @@ typedef struct {                                            // Struct de entrada
     uint64_t index;                                         // Número índice da entrada
     double time;                                            // Tempo que será executado
     double draw;                                            // Sorteio do RNG
-    fixedynarray(uint64_t) queue_sizes;                     // Tamanhos das filas
-    fixedynarray(fixedynarray(double)) queue_states;        // Estados das filas (tempo total para cada estado de cada fila)
+    dynbuffer(uint64_t) queue_sizes;                        // Tamanhos das filas
+    dynbuffer(dynbuffer(double)) queue_states;              // Estados das filas (tempo total para cada estado de cada fila)
     bool b_removed;                                         // Para indicar se já foi utilizado e removido
     bool b_loss;                                            // Para indicar se houve uma perda de unidade neste evento
 } event_entry;
 
 bool b_finished = false;                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
-uint64_t num_queues = 2;                                        // Número de filas
-// fixedynarray(uint64_t) queue_capacities; // TODO: Necessário?                                // Capacidade máxima da fila 1
-uint64_t max_num_rng = 10;                                 // Número de números pseudoaleatórios a serem calculados
-// uint64_t max_queue_state = 0; // LARGEST_QUEUE_CAPACITY+1;                  // Número máximo de estados da fila (Capacidade da fila maior + 1)
-
 // Tempo e RNG da simulação
 double current_time = 0.0;                                  // Tempo atual da simulação (incrementa a cada evento)
 uint64_t rng_count = 0;                                     // Contador de números RNG utilizados
 uint64_t previous = 4651815687;                             // Último número RNG computado, inicializado aqui com o seed
+uint64_t max_num_rng = 100000;                               // Número de números pseudoaleatórios a serem calculados
 
-// Listas dinâmicas de filas e eventos
-fixedynarray(queue) queues = NULL;                              // Array de filas da simulação
-fixedynarray(event_entry) events = NULL;                        // Lista de eventos em ordem de criação
-fixedynarray(uint64_t) chronological_events_indexes = NULL;     // Lista de índices de eventos em ordem de execução
-fixedynarray(uint64_t) current_scheduled_entries_indexes = NULL;// Lista de índices de eventos não executadas do escalonador
+// Buffer de filas
+uint64_t num_queues = 3;                                    // Número de filas
+dynbuffer(queue) queues = NULL;                             // Buffer de filas da simulação
+
+// Listas dinâmicas de eventos
+dynarray(event_entry) events = NULL;                        // Lista de eventos em ordem de criação
+dynarray(uint64_t) chronological_events_indexes = NULL;     // Lista de índices de eventos em ordem de execução
+dynarray(uint64_t) current_scheduled_entries_indexes = NULL;// Lista de índices de eventos não executadas do escalonador
 
 void setup();
 int compare_entries_by_time_asc(const void *a, const void *b);
 double linear_congruential_generator(uint64_t a, uint64_t c, uint64_t M);
 float next_random();
 double calculate_draw(uint64_t min, uint64_t max);
-// void add_to_scheduler(enum EntryType type, double a, double b);
 void add_to_scheduler(enum EntryType type, queue *q);
 void arrival(uint64_t event_index);
 void service(uint64_t event_index);
 void calculate_service_outcome(uint64_t event_index);
-// void exchange_queue(event_entry *event);
 void print_chronological_entry(event_entry *entry);
 void print_scheduled_entry(event_entry *entry);
 void print_queue_state_probability_calc();
@@ -84,57 +81,101 @@ void setup()
     // num_queues = ?;
     // max_num_rng = ?;
 
-    fixedynarray_init(&queues, num_queues);
-    fixedynarray_init(&events, max_num_rng+1);
-    fixedynarray_init(&chronological_events_indexes, max_num_rng+1);
-    fixedynarray_init(&current_scheduled_entries_indexes, max_num_rng+1);
+    dynbuffer_init_n(&queues, num_queues);
+    dynarray_init_n(&events, max_num_rng+1);
+    dynarray_init_n(&chronological_events_indexes, max_num_rng+1);
+    dynarray_init_n(&current_scheduled_entries_indexes, max_num_rng+1);
 
     // TODO: código do escopo abaixo será removido e receberá do .yml
     {
-    fixedynarray_push_last(&queues, ((queue){
+    queues[0] = (queue){
             .index = 0,
-            .b_first_queue = true,
-            .num_servers = 2,
-            .capacity = 3,
-            .customers = 0,
-            .exchange_to = 1,
-            .loss = 0,
-            .first_arrival = 1.5,
-            .min_arrival = 1.0,
-            .max_arrival = 4.0,
-            .min_service = 3.0,
-            .max_service = 4.0
-        }));
-
-     fixedynarray_push_last(&queues, ((queue){
-            .index = 1,
-            .b_first_queue = false,
+            .b_infinite_capacity = true,
             .num_servers = 1,
+            .capacity = 0,
+            .customers = 0,
+            .loss = 0,
+            .first_arrival = 2.0,
+            .min_arrival = 2.0,
+            .max_arrival = 4.0,
+            .min_service = 1.0,
+            .max_service = 2.0
+        };
+        
+        dynbuffer_init_n(&(queues[0].exit_to), 2);
+        dynbuffer_init_n(&(queues[0].exit_odds), 2);
+
+        queues[0].exit_to[0] = 1;
+        queues[0].exit_odds[0] = 0.8;
+        queues[0].exit_to[1] = 2;
+        queues[0].exit_odds[1] = 0.2;
+
+     queues[1] = (queue){
+            .index = 1,
+            // .b_first_queue = false,
+            .b_infinite_capacity = false,
+            .num_servers = 2,
             .capacity = 5,
             .customers = 0,
-            .exchange_to = -1,
             .loss = 0,
             .first_arrival = 0.0,
             .min_arrival = 0.0,
             .max_arrival = 0.0,
-            .min_service = 2.0,
-            .max_service = 3.0
-        }));
+            .min_service = 4.0,
+            .max_service = 6.0
+        };
+
+        dynbuffer_init_n(&(queues[1].exit_to), 3);
+        dynbuffer_init_n(&(queues[1].exit_odds), 3);
+
+        queues[1].exit_to[0] = 0;
+        queues[1].exit_odds[0] = 0.3;
+        queues[1].exit_to[1] = -1;
+        queues[1].exit_odds[1] = 0.2;
+        queues[1].exit_to[2] = 1;
+        queues[1].exit_odds[2] = 0.5;
+
+        queues[2] = (queue){
+            .index = 2,
+            // .b_first_queue = false,
+            .b_infinite_capacity = false,
+            .num_servers = 2,
+            .capacity = 10,
+            .customers = 0,
+            .loss = 0,
+            .first_arrival = 0.0,
+            .min_arrival = 0.0,
+            .max_arrival = 0.0,
+            .min_service = 5.0,
+            .max_service = 15.0
+        };
+
+        dynbuffer_init_n(&(queues[2].exit_to), 2);
+        dynbuffer_init_n(&(queues[2].exit_odds), 2);
+
+        queues[2].exit_to[0] = 2;
+        queues[2].exit_odds[0] = 0.7;
+        queues[2].exit_to[1] = -1;
+        queues[2].exit_odds[1] = 0.3;
     }
 
     // Popula filas
-    for (uint64_t i = 0; i < fixedynarray_size(&queues); i++)
+    for (uint64_t i = 0; i < dynbuffer_capacity(&queues); i++)
     {
         // uint64_t queue_capacity = ?;  // TODO: receberá do .yml
-        // queues[i].capacity = queue_capacity; 
+        // queues[i].capacity = queue_capacity;
 
-        uint64_t queue_capacity = queues[i].capacity; // TODO: remover quando o código de leitura do .yml estiver funcionando
+        // uint64_t queue_capacity = queues[i].capacity; // TODO: remover quando o código de leitura do .yml estiver funcionando
 
-        fixedynarray_init(&(queues[i].times), queue_capacity+1);
-
-        for (uint64_t j = 0; j < queue_capacity+1; j++)
+        if (queues[i].b_infinite_capacity)
         {
-            queues[i].times[j] = 0;
+            // Inicia fila com capacidade para uma unidade
+            queues[i].capacity = 1;
+            dynbuffer_init(&(queues[i].times));
+        }
+        else
+        {
+            dynbuffer_init_n(&(queues[i].times), queues[i].capacity+1);
         }
     }
 }
@@ -179,7 +220,6 @@ double calculate_draw(uint64_t min, uint64_t max)
 // Adiciona nova entrada no escalonador
 void add_to_scheduler(enum EntryType type, queue *q)
 {
-    // TODO: remover
     if (b_finished) { return; }
 
     double new_draw = 0.0;
@@ -193,36 +233,37 @@ void add_to_scheduler(enum EntryType type, queue *q)
         new_draw = calculate_draw( q->min_service, q->max_service );
     }
 
-    fixedynarray_push_last(&events, ((event_entry) {
+    dynarray_push_last(&events, ((event_entry) {
                         .entry_type = type,
                         .queue_from = q,
                         .queue_to = NULL,
-                        .index = (fixedynarray_size(&events)),
+                        .index = (dynarray_size(&events)),
                         .time = (current_time + new_draw),
                         .draw = new_draw,
                         .b_removed = false,
                         .b_loss = false
                     }));
     
-    event_entry *new_event = &fixedynarray_last(&events);
+    event_entry *new_event = (dynarray_get_last_ptr(&events));
 
     // Inicializa arrays do novo evento
-    // TODO: Inicializa em 0 mesmo?!
-    fixedynarray_init(&(new_event->queue_sizes), num_queues);
-    fixedynarray_init(&(new_event->queue_states), num_queues);
+    dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
+    dynbuffer_init_n(&(new_event->queue_states), num_queues);
     for (uint64_t i = 0; i < num_queues; i++)
     {
-        new_event->queue_sizes[i] = 0;
+        // new_event->queue_sizes[i] = 0;
 
-        fixedynarray_init(&(new_event->queue_states[i]), queues[i].capacity+1);
-
-        for (uint64_t j = 0; j < queues[i].capacity+1; j++)
+        if (queues[i].b_infinite_capacity)
         {
-            new_event->queue_states[i][j] = 0;
+            dynbuffer_init(&(new_event->queue_states[i]));
+        }
+        else
+        {
+            dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity+1);
         }
     }
 
-    fixedynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
+    dynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
 }
 
 // Função de entrada de uma unidade na fila
@@ -236,7 +277,7 @@ void arrival(uint64_t event_index)
     event->b_removed = true;
 
     // Adiciona à lista de eventos por ordem de execução
-    fixedynarray_push_last(&chronological_events_indexes, event->index);
+    dynarray_push_last(&chronological_events_indexes, event->index);
 
     // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
     double previous_time = current_time;
@@ -247,18 +288,44 @@ void arrival(uint64_t event_index)
     for (uint64_t i = 0; i < num_queues; i++)
     {
         queues[i].times[queues[i].customers] += added_time;
-        for (uint64_t j = 0; j < queues[i].capacity+1; j++)
+
+        // Verifica se o buffer de queue_states é grande o suficiente
+        uint64_t required_capacity = queues[i].capacity + 1;
+
+        if (event->queue_states[i] == NULL)
         {
-            event->queue_states[i][j] = queues[i].times[queues[i].customers];
+            dynbuffer_init_n(&(event->queue_states[i]), required_capacity);
+        }
+        else if (dynbuffer_capacity(&(event->queue_states[i])) < required_capacity)
+        {
+            dynbuffer_resize(&(event->queue_states[i]), required_capacity);
+        }
+
+        event->queue_sizes[i] = queues[i].customers;
+        
+        for (uint64_t j = 0; j < required_capacity; j++)
+        {
+            event->queue_states[i][j] = queues[i].times[j];
         }
     }
 
     // Verifica se existe espaço na fila
-    if (q->customers < q->capacity)
+    if (q->b_infinite_capacity || q->customers < q->capacity)
     {
-
         // Aumenta tamanho da fila na simulação e no evento
         q->customers++;
+
+        // Se a fila for infinita e a capacidade indicada for menor que as unidades que contém, aumenta
+        if (q->b_infinite_capacity && q->customers > q->capacity)
+        {
+            q->capacity = q->customers;
+
+            // Se não cabe nos tempos da fila, aumenta
+            if (dynbuffer_capacity(&(q->times)) < q->customers+1)
+            {
+                dynbuffer_resize(&(q->times), q->customers+1);
+            }
+        }
 
         // Se existe atendente livre, entra e adiciona ao escalonador uma troca de fila
         if (q->customers <= q->num_servers)
@@ -291,7 +358,7 @@ void service(uint64_t event_index)
     event->b_removed = true;
 
     // Adiciona à lista de eventos por ordem de execução
-    fixedynarray_push_last(&chronological_events_indexes, event->index);
+    dynarray_push_last(&chronological_events_indexes, event->index);
 
     // Atualiza o tempo da simulação e calcula tempo adicional comparado ao anterior
     double previous_time = current_time;
@@ -302,9 +369,24 @@ void service(uint64_t event_index)
     for (uint64_t i = 0; i < num_queues; i++)
     {
         queues[i].times[queues[i].customers] += added_time;
-        for (uint64_t j = 0; j < queues[i].capacity+1; j++)
+
+        // Verifica se o buffer de queue_states é grande o suficiente
+        uint64_t required_capacity = queues[i].capacity + 1;
+
+        if (event->queue_states[i] == NULL)
         {
-            event->queue_states[i][j] = queues[i].times[queues[i].customers];
+            dynbuffer_init_n(&(event->queue_states[i]), required_capacity);
+        }
+        else if (dynbuffer_capacity(&(event->queue_states[i])) < required_capacity)
+        {
+            dynbuffer_resize(&(event->queue_states[i]), required_capacity);
+        }
+
+        event->queue_sizes[i] = queues[i].customers;
+        
+        for (uint64_t j = 0; j < required_capacity; j++)
+        {
+            event->queue_states[i][j] = queues[i].times[j];
         }
     }
 
@@ -322,15 +404,31 @@ void calculate_service_outcome(uint64_t event_index)
     bool b_exit = true;
     queue *queue_from = event->queue_from;
 
+    // Gera um número aleatório
+    double rng = calculate_draw(0,1);
+    double sum = 0.0;
+    int exit_index = -2;
+
+    // Verifica em qual das possibilidades de saída o número gerado cai
+    for (uint64_t i = 0; i < dynbuffer_capacity(&(queue_from->exit_odds)); i++)
+    {
+        sum += queue_from->exit_odds[i];
+        if (rng <= sum)
+        {
+            exit_index = queue_from->exit_to[i];
+            break;
+        }
+    }
+
     // Verifica se é uma saída
-    if (queue_from->exchange_to != -1)
+    if (exit_index != -1)
     {
         // Se não for uma saída, muda tipo para passagem
         event->entry_type = EXCHANGE;
         b_exit = false;
     }
     
-    queue *queue_to = &(queues[queue_from->exchange_to]);
+    queue *queue_to = &(queues[exit_index]);
     
     // Diminui tamanho da fila origem (caso seja também de destino será incrementada depois)
     // Verifica se há alguém na lista de espera de origem para ser atendido e agendar nova saída
@@ -343,10 +441,22 @@ void calculate_service_outcome(uint64_t event_index)
     if (!b_exit)
     {
         // Verifica se existe espaço na fila destino
-        if (queue_to->customers < queue_to->capacity)
+        if (queue_to->b_infinite_capacity || queue_to->customers < queue_to->capacity)
         {
             // Aumenta tamanho da fila destino na simulação e no evento
             queue_to->customers++;
+
+            // Se a fila for infinita e a capacidade indicada for menor que as unidades que contém, aumenta
+            if (queue_to->b_infinite_capacity && queue_to->customers > queue_to->capacity)
+            {
+                queue_to->capacity = queue_to->customers;
+
+                // Se não cabe nos tempos da fila, aumenta
+                if (dynbuffer_capacity(&(queue_to->times)) < queue_to->customers+1)
+                {
+                    dynbuffer_resize(&(queue_to->times), queue_to->customers+1);
+                }
+            }
 
             // Se existe atendente livre, entra e adiciona ao escalonador uma nova saída
             if (queue_to->customers <= queue_to->num_servers)
@@ -364,25 +474,10 @@ void calculate_service_outcome(uint64_t event_index)
 }
 
 // Imprime entrada da lista de eventos
-void print_chronological_entry(event_entry *entry)
-{
-    printf("(%5lu) ", entry->index + 1);
-
-    if (entry->b_loss)
-    {
-        if (entry->entry_type == ARRIVAL)
-        {
-            printf("AR.");
-        }
-        else if (entry->entry_type == EXCHANGE)
-        {
-            printf("EX.");
-        }
-        printf(" LOSS");
-    }
-    else
-    {
-        switch (entry->entry_type)
+void print_chronological_entry(event_entry *entry) {
+    printf("Event %lu\n", entry->index + 1);
+    printf("Type: ");
+    switch (entry->entry_type)
         {
             case ARRIVAL:
                 printf("ARRIVAL ");
@@ -394,26 +489,22 @@ void print_chronological_entry(event_entry *entry)
                 printf("EXCHANGE");
                 break;
         }
-    }
+        printf("| Time: %f\n", entry->time);
+    
+    for (uint64_t i = 0; i < num_queues; i++) {
+        printf("  Queue %lu: Size = %lu\n", i, entry->queue_sizes[i]);
+        // Only print states that actually have time accumulated to save space
+        printf("  States: ");
 
-    printf(" || %13f ||", entry->time);
-
-    for (uint64_t i = 0; i < num_queues; i++)
-    {
-        printf(" %8lu |", entry->queue_sizes[i]);
-        for (uint64_t j = 0; j < queues[i].capacity+1; j++)
-        {
-            printf(" %13f |", entry->queue_states[i][j]);
+        uint64_t states_in_this_event = dynbuffer_capacity(&(entry->queue_states[i]));
+        for (uint64_t j = 0; j < states_in_this_event; j++) {
+            {
+                printf("[%lu]: %.2f  ", j, entry->queue_states[i][j]);
+            }
         }
-        printf("|");
+        printf("\n");
     }
-
-    if (entry->b_loss)
-    {
-        printf(" LOST UNIT!");
-    }
-
-    printf("\n");
+    printf("--------------------\n\n");
 }
 
 // Imprime entrada da lista de eventos
@@ -469,12 +560,14 @@ void print_queue_state_probability_calc()
     for (uint64_t i = 0; i < num_queues; i++)
     {
         printf("Queue %lu:\n", i+1);
+
+        // TODO: Ver se não quebra
         for (uint64_t j = 0; j < queues[i].capacity+1; j++)
         {
             printf("%5lu: %13f (%8f%%)\n", j, queues[i].times[j], (queues[i].times[j] / current_time * 100));
         }
         printf("TOTAL: %13f (%8f%%)\n", current_time, 100.0);
-        printf(" Loss: %6lu / %6lu (%8f%%)\n\n", queues[i].loss, (fixedynarray_size(&chronological_events_indexes)+1), (double)queues[i].loss/(fixedynarray_size(chronological_events_indexes)+1)*100);
+        printf(" Loss: %6lu / %6lu (%8f%%)\n\n", queues[i].loss, (dynarray_size(&chronological_events_indexes)+1), (double)queues[i].loss/(dynarray_size(chronological_events_indexes)+1)*100);
     }
 }
 
@@ -482,12 +575,14 @@ int main(void)
 {
     setup();
 
+    // TODO: .yml precisa dizer onde começa o first arrival
+
     // Cria uma primeira entrada no escalonador e envia na função de entrada na fila 1 para início da simulação    
-    fixedynarray_push_last(&events, ((event_entry) {
+    dynarray_push_last(&events, ((event_entry) {
                         .entry_type = ARRIVAL,
                         .queue_from = &queues[0],
                         .queue_to = NULL,
-                        .index = (fixedynarray_size(&events)),
+                        .index = (dynarray_size(&events)),
                         .time = queues[0].first_arrival,
                         .draw = queues[0].first_arrival,
                         .b_removed = false,
@@ -496,30 +591,23 @@ int main(void)
 
     event_entry *new_event = &(events[0]);
 
-    // Inicializa arrays do novo evento em 0
-    fixedynarray_init(&(new_event->queue_sizes), num_queues);
-    fixedynarray_init(&(new_event->queue_states), num_queues);
+    // Inicializa buffers
+    dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
+    dynbuffer_init_n(&(new_event->queue_states), num_queues);
     for (uint64_t i = 0; i < num_queues; i++)
     {
-        new_event->queue_sizes[i] = 0;
-
-        fixedynarray_init(&(new_event->queue_states[i]), queues[i].capacity+1);
-
-        for (uint64_t j = 0; j < queues[i].capacity+1; j++)
-        {
-            new_event->queue_states[i][j] = 0;
-        }
+        dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity + 1);
     }
 
     arrival(current_scheduled_entries_indexes[0]);
 
-    while (!b_finished)
+    while (!b_finished && dynarray_size(&current_scheduled_entries_indexes) > 0)
     {
         // Ordena entradas do escalonador por tempo
-        qsort(current_scheduled_entries_indexes, fixedynarray_size(&current_scheduled_entries_indexes), sizeof(uint64_t), compare_entries_by_time_asc);
+        qsort(current_scheduled_entries_indexes, dynarray_size(&current_scheduled_entries_indexes), sizeof(uint64_t), compare_entries_by_time_asc);
 
         uint64_t event_index;
-        fixedynarray_pop_first(&current_scheduled_entries_indexes, event_index);
+        dynarray_pop_first(&current_scheduled_entries_indexes, event_index);
         event_entry *entry = &events[event_index];
 
         if (entry->entry_type == ARRIVAL)
@@ -540,7 +628,7 @@ int main(void)
         for (uint64_t i = 0; i < num_queues; i++)
         {
             printf("QUEUE %4lu|", (uint64_t)1);
-            for (uint64_t j = 0; j < queues[i].capacity+1; j++)
+            for (uint64_t j = 0; j < dynbuffer_capacity(&(queues[i].times)); j++)
             {
                 printf("   %8lu    |", j);
             }
@@ -554,7 +642,7 @@ int main(void)
         for (uint64_t i = 0; i < num_queues; i++)
         {
             printf(" %8d |", 0);
-            for (uint64_t j = 0; j < queues[i].capacity+1; j++)
+            for (uint64_t j = 0; j < dynbuffer_capacity(&(queues[i].times)); j++)
             {
                 printf(" %13f |", 0.0);
             }
@@ -563,13 +651,13 @@ int main(void)
         printf("\n");
 
         // Imprime os próximos
-        for (uint64_t i = 0; i < fixedynarray_size(&chronological_events_indexes); i++)
+        for (uint64_t i = 0; i < dynarray_size(&chronological_events_indexes); i++)
         {
             print_chronological_entry(&events[chronological_events_indexes[i]]);
         }
 
         printf("\nScheduled Events:\n       TYPE      ||     TIME      ||   DRAW   ||\n");
-        for (uint64_t i = 0; i < fixedynarray_size(&events); i++)
+        for (uint64_t i = 0; i < dynarray_size(&events); i++)
         {
             print_scheduled_entry(&events[i]);
         }
@@ -581,33 +669,35 @@ int main(void)
     // Libera memória das listas dinâmicas de capacidade fixa
     if (events != NULL)
     {
-        for (uint64_t i = 0; i < fixedynarray_capacity(&events); i++)
+        for (uint64_t i = 0; i < dynarray_capacity(&events); i++)
         {
-            fixedynarray_free(&(events[i].queue_sizes));
+            dynbuffer_free(&(events[i].queue_sizes));
 
             if (events[i].queue_states != NULL)
             {
-                for (uint64_t j = 0; j < fixedynarray_capacity(&(events[i].queue_states)); j++)
+                for (uint64_t j = 0; j < dynbuffer_capacity(&(events[i].queue_states)); j++)
                 {
-                    fixedynarray_free(&(events[i].queue_states[j]));
+                    dynbuffer_free(&(events[i].queue_states[j]));
                 }
-                fixedynarray_free(&(events[i].queue_states));
+                dynbuffer_free(&(events[i].queue_states));
             }
         }
-        fixedynarray_free(&events);
+        dynarray_free(&events);
     }
 
     if (queues != NULL)
     {
-        for (uint64_t i = 0; i < fixedynarray_capacity(&queues); i++)
+        for (uint64_t i = 0; i < dynbuffer_capacity(&queues); i++)
         {
-            fixedynarray_free(&(queues[i].times));
+            dynbuffer_free(&(queues[i].times));
+            dynbuffer_free(&(queues[i].exit_to));
+            dynbuffer_free(&(queues[i].exit_odds));
         }
-        fixedynarray_free(&queues);
+        dynbuffer_free(&queues);
     }
 
-    fixedynarray_free(&chronological_events_indexes);
-    fixedynarray_free(&current_scheduled_entries_indexes);
+    dynarray_free(&chronological_events_indexes);
+    dynarray_free(&current_scheduled_entries_indexes);
 
     return 0;
 }
