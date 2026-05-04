@@ -19,6 +19,7 @@
 bool b_finished = false;                                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 // Tempo e RNG da simulação
+// TODO: Botar valores padrão e/ou mudar inicialização para setup()
 uint64_t max_num_rng = 100000;                                              // Número de números pseudoaleatórios a serem calculados
 double current_time = 0.0;                                                  // Tempo atual da simulação (incrementa a cada evento)
 
@@ -36,6 +37,7 @@ void setup(void);                                                           // F
 // Função para inicializar valores padrão e outras configurações iniciais
 void setup(void)
 {
+    // Teste com string_t
     STRING_CREATE(dsad, "DSADSA");
     string_free(&dsad);
 
@@ -240,26 +242,7 @@ int main(void)
     printf("\nProbabilities of each queue state:\n");
     print_queue_state_percentage_calc();
 
-    // Libera memória das listas dinâmicas de capacidade fixa
-    if (events != NULL)
-    {
-        // Libera memória apenas dos structs que foram inicializados, contando pelo size
-        for (uint64_t i = 0; i < dynarray_size(&events); i++)
-        {
-            dynbuffer_free(&(events[i].queue_sizes));
-
-            if (events[i].queue_states != NULL)
-            {
-                for (uint64_t j = 0; j < dynbuffer_capacity(&(events[i].queue_states)); j++)
-                {
-                    dynbuffer_free(&(events[i].queue_states[j]));
-                }
-                dynbuffer_free(&(events[i].queue_states));
-            }
-        }
-        dynarray_free(&events);
-    }
-
+    // Libera memória dos buffers dinâmicos
     if (queues != NULL)
     {
         for (uint64_t i = 0; i < dynbuffer_capacity(&queues); i++)
@@ -271,6 +254,24 @@ int main(void)
         dynbuffer_free(&queues);
     }
 
+    // Libera memória das listas dinâmicas
+    if (events != NULL)
+    {
+        // Libera memória apenas dos structs que foram inicializados, para isso contando pelo size
+        for (uint64_t i = 0; i < dynarray_size(&events); i++)
+        {
+            dynbuffer_free(&(events[i].queue_sizes));
+
+            
+            for (uint64_t j = 0; j < dynbuffer_capacity(&(events[i].queue_states)); j++)
+            {
+                dynbuffer_free(&(events[i].queue_states[j]));
+            }
+            dynbuffer_free(&(events[i].queue_states));
+        
+        }
+        dynarray_free(&events);
+    }
     dynarray_free(&chronological_events_indexes);
     dynarray_free(&current_scheduled_entries_indexes);
 
