@@ -5,7 +5,7 @@ INC_DIR = include/
 SRC = $(wildcard $(SRC_DIR)*.c)
 OBJ = $(SRC:.c=.o)
 
-CFLAGS = -std=c99 -O0 -I$(INC_DIR)
+CFLAGS = -std=c99 -O3 -I$(INC_DIR)
 DBGFLAGS = -Wall -Werror -pedantic -g
 LDFLAGS =
 CC = gcc
