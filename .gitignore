@@ -54,3 +54,6 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# clangd files
+compile_commands.json
