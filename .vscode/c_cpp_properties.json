@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "Global",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src"
+            ],
+            "compilerPath": "gcc",
+            "cStandard": "c99",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
