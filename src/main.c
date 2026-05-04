@@ -5,7 +5,6 @@
 
 #include "globals.h"
 #include "simulate_queue.h"
-#include "random_gen.h"
 #include "macro_dynarray.h"
 #include "macro_dynbuffer.h"
 #include "types.h"
@@ -45,7 +44,10 @@ void setup(void)
     // num_queues = ?;
     // max_num_rng = ?;
 
+    // Buffer dinâmica inicializa memória em 0
     dynbuffer_init_n(&queues, num_queues);
+
+    // Arrays dinâmicas não inicializam memória em 0, e o controle está no seu tamanho, não capacidade
     dynarray_init_n(&events, max_num_rng+1);
     dynarray_init_n(&chronological_events_indexes, max_num_rng+1);
     dynarray_init_n(&current_scheduled_entries_indexes, max_num_rng+1);
@@ -170,7 +172,8 @@ int main(void)
         dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity + 1);
     }
 
-    arrival(current_scheduled_entries_indexes[0]);
+    // não insere no current_scheduled_entries_indexes porque já é retirado de início
+    arrival(0);
 
     while (!b_finished && dynarray_size(&current_scheduled_entries_indexes) > 0)
     {
@@ -240,7 +243,8 @@ int main(void)
     // Libera memória das listas dinâmicas de capacidade fixa
     if (events != NULL)
     {
-        for (uint64_t i = 0; i < dynarray_capacity(&events); i++)
+        // Libera memória apenas dos structs que foram inicializados, contando pelo size
+        for (uint64_t i = 0; i < dynarray_size(&events); i++)
         {
             dynbuffer_free(&(events[i].queue_sizes));
 
