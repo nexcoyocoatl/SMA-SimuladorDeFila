@@ -28,7 +28,7 @@ struct dynarray_header
         } \
         uint64_t initial_capacity = 8; \
         uint64_t size = sizeof(struct dynarray_header) + (uint64_t)(initial_capacity*sizeof(**(DA))); \
-        struct dynarray_header *header = (struct dynarray_header*) calloc(1, size); \
+        struct dynarray_header *header = (struct dynarray_header*) malloc(size); \
         if (header == NULL) { \
             fprintf(stderr, "dynarray error: malloc failed\n"); \
         } \
@@ -50,7 +50,7 @@ struct dynarray_header
         } \
         uint64_t initial_capacity = n; \
         uint64_t size = sizeof(struct dynarray_header) + (uint64_t)(initial_capacity*sizeof(**(DA))); \
-        struct dynarray_header *header = (struct dynarray_header*) calloc(1, size); \
+        struct dynarray_header *header = (struct dynarray_header*) malloc(size); \
         if (header == NULL) { \
             fprintf(stderr, "dynarray error: malloc failed\n"); \
         } \
@@ -250,7 +250,17 @@ do { \
         dynarray_remove_first(DA); \
     } while(0)
 
-// Clears list memory
+// Initializes list memory to 0
+#define dynarray_clear(DA) \
+do { \
+    if (*(DA) != NULL) { \
+        struct dynarray_header *header = ((struct dynarray_header*)(*(DA))) - 1; \
+        memset(*(DA), 0, header->m_capacity * sizeof(**(DA))); \
+        header->m_size = 0; \
+    } \
+} while(0)
+
+// Frees list memory
 #define dynarray_free(DA) \
 do { \
     if (*(DA)) \
@@ -262,7 +272,7 @@ do { \
     } \
 } while(0)
 
-// Clears list memory and its objects (for a list of objects in the heap)
+// Frees list memory and its objects (for a list of objects in the heap)
 #define dynarray_free_all(DA, F) \
     do { \
     if (*(DA)) \
