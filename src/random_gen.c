@@ -3,7 +3,6 @@
 
 uint64_t rng_count = 0;             // Contador de números RNG utilizados
 uint64_t previous = 4651815687;     // Último número RNG computado, inicializado aqui com o seed
-uint64_t max_num_rng = 100000;      // Número de números pseudoaleatórios a serem calculados
 
 // Gerador de número aleatório a partir de congruência linear
 double linear_congruential_generator(uint64_t a, uint64_t c, uint64_t M)

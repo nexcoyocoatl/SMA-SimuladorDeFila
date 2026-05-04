@@ -19,7 +19,8 @@
 
 bool b_finished = false;                                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
-// Tempo da simulação
+// Tempo e RNG da simulação
+uint64_t max_num_rng = 100000;                                              // Número de números pseudoaleatórios a serem calculados
 double current_time = 0.0;                                                  // Tempo atual da simulação (incrementa a cada evento)
 
 // Buffer dinâmico de filas

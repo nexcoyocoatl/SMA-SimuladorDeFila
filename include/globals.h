@@ -7,6 +7,7 @@
 extern bool b_finished;                                         // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 // Tempo e RNG da simulação
+extern uint64_t max_num_rng;                                    // Número de números pseudoaleatórios a serem calculados
 extern double current_time;                                     // Tempo atual da simulação (incrementa a cada evento)
 
 // Buffer dinâmico de filas
