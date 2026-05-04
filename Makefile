@@ -1,9 +1,11 @@
 # Linux e Windows
 
 SRC_DIR = src/
-SRC = simulate_queue.c
-OBJ = $(addprefix $(SRC_DIR),$(SRC:.c=.o))
-CFLAGS = -std=c99 -O0
+INC_DIR = include/
+SRC = $(wildcard $(SRC_DIR)*.c)
+OBJ = $(SRC:.c=.o)
+
+CFLAGS = -std=c99 -O0 -I$(INC_DIR)
 DBGFLAGS = -Wall -Werror -pedantic -g
 LDFLAGS =
 CC = gcc
@@ -22,13 +24,19 @@ else
    endif
 endif
 
-%.o: %.c
+# Default
+all: $(BIN)
+
+# Linking
+$(BIN): $(OBJ)
+	$(CC) $(CFLAGS) $(DBGFLAGS) $(OBJ) -o $(BIN) $(LDFLAGS)
+
+# Compilation
+$(SRC_DIR)%.o: $(SRC_DIR)%.c
 	$(CC) $(CFLAGS) $(DBGFLAGS) -c $< -o $@
 
-$(BIN): $(OBJ)
-	$(CC) $(CFLAGS) $(OBJ) $(LDFLAGS) $(DBGFLAGS) -o $(BIN)
 
-run:
+run: all
 	$(EXEC)$(BIN)
 
 clean:
