@@ -145,7 +145,17 @@ do { \
 #define dynbuffer_set_last(DA, E) \
     (assert(dynbuffer_capacity((DA)) > 0 && "dynbuffer: empty!"), (*(DA))[(dynbuffer_capacity(DA)-1)] = (E))
 
-// Clears list memory
+// Initializes list memory to 0
+#define dynbuffer_clear(DA) \
+do { \
+    if (*(DA) != NULL) { \
+        struct dynbuffer_header *header = ((struct dynbuffer_header*)(*(DA))) - 1; \
+        memset(*(DA), 0, header->m_capacity * sizeof(**(DA))); \
+        header->m_size = 0; \
+    } \
+} while(0)
+
+// Frees list memory
 #define dynbuffer_free(DA) \
 do { \
     if (*(DA)) \
@@ -157,7 +167,7 @@ do { \
     } \
 } while(0)
 
-// Clears list memory and its objects (for a list of objects in the heap)
+// Frees list memory and its objects (for a list of objects in the heap)
 #define dynbuffer_free_all(DA, F) \
     do { \
     if (*(DA)) \
