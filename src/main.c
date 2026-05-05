@@ -9,12 +9,9 @@
 #include "macro_dynbuffer.h"
 #include "types.h"
 #include "utils.h"
-#include "string_t.h"
 
 // TODO: Documentação
 // TODO: Leitura .yml
-
-#define DEBUG 0                                                             // Para ativar modo debug (imprime todos os eventos)
 
 bool b_finished = false;                                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
@@ -36,12 +33,7 @@ void setup(void);                                                           // F
 
 // Função para inicializar valores padrão e outras configurações iniciais
 void setup(void)
-{
-    // Teste com string_t
-    STRING_CREATE(dsad, "DSADSA");
-    string_free(&dsad);
-
-    
+{    
     // TODO: leitura do .yml para popular as variáveis de número de eventos, filas e etc
     // num_queues = ?;
     // max_num_rng = ?;
@@ -167,12 +159,16 @@ int main(void)
     event_entry *new_event = &(events[0]);
 
     // Inicializa buffers
-    dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
-    dynbuffer_init_n(&(new_event->queue_states), num_queues);
-    for (uint64_t i = 0; i < num_queues; i++)
+    if (DEBUG)
     {
-        dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity + 1);
+        dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
+        dynbuffer_init_n(&(new_event->queue_states), num_queues);
+        for (uint64_t i = 0; i < num_queues; i++)
+        {
+            dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity + 1);
+        }
     }
+    
 
     // não insere no current_scheduled_entries_indexes porque já é retirado de início
     arrival(0);
@@ -237,9 +233,10 @@ int main(void)
         {
             print_scheduled_entry(&events[i]);
         }
+        printf("\n");
     }
 
-    printf("\nProbabilities of each queue state:\n");
+    printf("Probabilities of each queue state:\n");
     print_queue_state_percentage_calc();
 
     // Libera memória dos buffers dinâmicos
@@ -258,18 +255,21 @@ int main(void)
     if (events != NULL)
     {
         // Libera memória apenas dos structs que foram inicializados, para isso contando pelo size
-        for (uint64_t i = 0; i < dynarray_size(&events); i++)
+        // Se debug estiver desligado, não foram inicializados
+        if (DEBUG)
         {
-            dynbuffer_free(&(events[i].queue_sizes));
-
-            
-            for (uint64_t j = 0; j < dynbuffer_capacity(&(events[i].queue_states)); j++)
+            for (uint64_t i = 0; i < dynarray_size(&events); i++)
             {
-                dynbuffer_free(&(events[i].queue_states[j]));
+                dynbuffer_free(&(events[i].queue_sizes));
+                
+                for (uint64_t j = 0; j < dynbuffer_capacity(&(events[i].queue_states)); j++)
+                {
+                    dynbuffer_free(&(events[i].queue_states[j]));
+                }
+                dynbuffer_free(&(events[i].queue_states));
+            
             }
-            dynbuffer_free(&(events[i].queue_states));
-        
-        }
+        }        
         dynarray_free(&events);
     }
     dynarray_free(&chronological_events_indexes);

@@ -35,21 +35,16 @@ void add_to_scheduler(enum EntryType type, queue *q)
     event_entry *new_event = (dynarray_get_last_ptr(&events));
 
     // Inicializa arrays do novo evento
-    dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
-    dynbuffer_init_n(&(new_event->queue_states), num_queues);
-    for (uint64_t i = 0; i < num_queues; i++)
+    
+    if (DEBUG)
     {
-        // new_event->queue_sizes[i] = 0;
-
-        if (queues[i].b_infinite_capacity)
-        {
-            dynbuffer_init(&(new_event->queue_states[i]));
-        }
-        else
+        dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
+        dynbuffer_init_n(&(new_event->queue_states), num_queues);
+        for (uint64_t i = 0; i < num_queues; i++)
         {
             dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity+1);
         }
-    }
+    }    
 
     dynarray_push_last(&current_scheduled_entries_indexes, new_event->index);
 }
@@ -59,29 +54,20 @@ void update_event_queues(event_entry *event, double added_time)
 {
     for (uint64_t i = 0; i < num_queues; i++)
     {
-        queues[i].times[queues[i].customers] += added_time;
-
         // Verifica se o buffer de queue_states é grande o suficiente
-        uint64_t current_queue_capacity = queues[i].capacity + 1;
+        uint64_t current_queue_states = queues[i].capacity + 1;
         {
-            if (event->queue_states[i] == NULL)
+            if (dynbuffer_capacity(&(event->queue_states[i])) < current_queue_states)
             {
-                dynbuffer_init_n(&(event->queue_states[i]), current_queue_capacity);
-            }
-            else if (dynbuffer_capacity(&(event->queue_states[i])) < current_queue_capacity)
-            {
-                dynbuffer_resize(&(event->queue_states[i]), current_queue_capacity);
+                dynbuffer_resize(&(event->queue_states[i]), current_queue_states);
             }
         }
 
         // Atualiza tamanho das filas no tempo de execução do evento com as filas globais atuais
         event->queue_sizes[i] = queues[i].customers;
         
-        // Atualiza estado de todas as filas no tempo de execução do evento com as filas globais atuais
-        for (uint64_t j = 0; j < current_queue_capacity; j++)
-        {
-            event->queue_states[i][j] = queues[i].times[j];
-        }
+        // Atualiza estado de todas as filas no tempo de execução do evento pelo valor das filas globais atuais
+        memcpy(event->queue_states[i], queues[i].times, current_queue_states * sizeof(double));            
     }
 }
 
@@ -103,7 +89,16 @@ void arrival(uint64_t event_index)
     double added_time = current_time - previous_time;
 
     // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    update_event_queues(event, added_time);
+    for (uint64_t i = 0; i < num_queues; i++)
+    {
+        queues[i].times[queues[i].customers] += added_time;
+    }
+
+    // Só atualiza estados das listas dos eventos no tempo de execução se for impresso
+    if (DEBUG)
+    {
+        update_event_queues(event, added_time);
+    }
 
     // Verifica se existe espaço na fila
     if (q->b_infinite_capacity || q->customers < q->capacity)
@@ -167,7 +162,16 @@ void service(uint64_t event_index)
     }
 
     // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    update_event_queues(event, added_time);
+    for (uint64_t i = 0; i < num_queues; i++)
+    {
+        queues[i].times[queues[i].customers] += added_time;
+    }
+
+    // Só atualiza estados das listas dos eventos no tempo de execução se for impresso
+    if (DEBUG)
+    {
+        update_event_queues(event, added_time);
+    }
 
     // É ATENDIDO AQUI! Pode ir para outra fila, sair, ou voltar para a mesma fila.
     calculate_service_outcome(event_index);
@@ -248,13 +252,13 @@ void print_chronological_entry(event_entry *entry) {
     switch (entry->entry_type)
         {
             case ARRIVAL:
-                printf("ARRIVAL ");
+                printf("ARRIVAL  ");
                 break;
             case SERVICE:
-                printf("SERVICE ");
+                printf("SERVICE  ");
                 break;
             case EXCHANGE:
-                printf("EXCHANGE");
+                printf("EXCHANGE ");
                 break;
         }
         printf("| Time: %f\n", entry->time);
@@ -300,18 +304,18 @@ void print_scheduled_entry(event_entry *entry)
         switch (entry->entry_type)
         {
             case ARRIVAL:
-                printf("ARRIVAL ");
+                printf("ARRIVAL  ");
                 break;
             case SERVICE:
-                printf("SERVICE ");
+                printf("SERVICE  ");
                 break;
             case EXCHANGE:
-                printf("EXCHANGE");
+                printf("EXCHANGE ");
                 break;
         }
     }
 
-    printf(" || %13f || %8f ||", entry->time, entry->draw);
+    printf(" || %15f || %15f ||", entry->time, entry->draw);
 
     // Strikethrough no texto caso tenha sido removido
     printf("\x1b[m");

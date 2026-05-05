@@ -4,6 +4,8 @@
 #include "macro_dynarray.h"
 #include "types.h"
 
+#define DEBUG 0                                                 // Para ativar modo debug (imprime todos os eventos)
+
 extern bool b_finished;                                         // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 // Tempo e RNG da simulação
