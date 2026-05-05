@@ -153,18 +153,18 @@ void service(uint64_t event_index)
     current_time = event->time;
     double added_time = current_time - previous_time;
 
+    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
+    for (uint64_t i = 0; i < num_queues; i++)
+    {
+        queues[i].times[queues[i].customers] += added_time;
+    }
+
     // Diminui tamanho da fila origem (caso seja também de destino será incrementada depois)
     // Verifica se há alguém na lista de espera de origem para ser atendido e agendar nova saída
     q->customers--;
     if (q->customers >= q->num_servers)
     {
         add_to_scheduler(SERVICE, q);
-    }
-
-    // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    for (uint64_t i = 0; i < num_queues; i++)
-    {
-        queues[i].times[queues[i].customers] += added_time;
     }
 
     // Só atualiza estados das listas dos eventos no tempo de execução se for impresso
