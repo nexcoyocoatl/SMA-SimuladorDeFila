@@ -332,7 +332,7 @@ void print_queue_state_percentage_calc(void)
 {
     for (uint64_t i = 0; i < dynarray_size(&queues); i++)
     {
-        printf("Queue %lu:\n", i+1);
+        printf("Queue %s [%lu]:\n", queues[i].name, i+1);
 
         printf(" Capacity:");
         if (queues[i].b_infinite_capacity)
