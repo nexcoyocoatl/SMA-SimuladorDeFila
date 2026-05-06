@@ -2,7 +2,6 @@
 #define __READ_FILE_H__
 
 #include "types.h"
-#include "globals.h"
 #include "macro_dynarray.h"
 #include <stdint.h>
 

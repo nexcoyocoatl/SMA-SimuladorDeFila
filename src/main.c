@@ -11,18 +11,11 @@
 #include "types.h"
 #include "utils.h"
 
-// TODO: Documentação
-// TODO: Leitura .yml
-
 bool b_finished = false;                                                    // Boolean para finalizar o loop do main (quando o número máximo de números aleatórios é atingido)
 
 // Tempo e RNG da simulação
-// TODO: Botar valores padrão e/ou mudar inicialização para setup()
-uint64_t max_num_rng;                                              // Número de números pseudoaleatórios a serem calculados
+uint64_t max_num_rng = 100;                                                 // Número de números pseudoaleatórios a serem calculados
 double current_time = 0.0;                                                  // Tempo atual da simulação (incrementa a cada evento)
-
-// Buffer dinâmico de filas
-// uint64_t num_queues = 3;                                                 // Número de filas
 
 // Listas dinâmicas de filas e eventos
 dynarray(queue) queues = NULL;                                              // Buffer de filas da simulação
@@ -39,8 +32,7 @@ char *filename = NULL;
 void setup(void)
 {   
     // Arrays dinâmicas não inicializam memória em 0, e o controle está no seu tamanho, não capacidade
-    // Buffer dinâmica inicializa memória em 0
-    dynarray_init_n(&queues, 8); // TODO: Checar
+    dynarray_init(&queues);
 
     parse_config(filename);
 

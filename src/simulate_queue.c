@@ -187,7 +187,7 @@ void calculate_service_outcome(uint64_t event_index)
     // Gera um número aleatório
     double rng = calculate_draw(0,1);
     double sum = 0.0;
-    int exit_index = -1; // TODO: Verificar se funciona
+    int exit_index = -1;
 
     // Verifica em qual das possibilidades de saída o número gerado cai
     for (uint64_t i = 0; i < dynarray_size(&(queue_from->exit_odds)); i++)
