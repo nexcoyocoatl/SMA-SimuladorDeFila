@@ -12,13 +12,12 @@ extern bool b_finished;                                         // Boolean para 
 extern uint64_t max_num_rng;                                    // Número de números pseudoaleatórios a serem calculados
 extern double current_time;                                     // Tempo atual da simulação (incrementa a cada evento)
 
-// Buffer dinâmico de filas
-extern uint64_t num_queues;                                     // Número de filas
-extern dynbuffer(queue) queues;                                 // Buffer de filas da simulação
-
-// Listas dinâmicas de eventos
+// Listas dinâmicas de eventos e filas
+extern dynarray(queue) queues;                                  // Lista de filas da simulação
 extern dynarray(event_entry) events;                            // Lista de eventos em ordem de criação
 extern dynarray(uint64_t) chronological_events_indexes;         // Lista de índices de eventos em ordem de execução
 extern dynarray(uint64_t) current_scheduled_entries_indexes;    // Lista de índices de eventos não executadas do escalonador
+
+extern dynarray(queue_parameters) queues_param;
 
 #endif

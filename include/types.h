@@ -3,12 +3,14 @@
 
 #include <stdbool.h>
 #include "macro_dynbuffer.h"
+#include "macro_dynarray.h"
 
 enum EntryType { ARRIVAL, SERVICE, EXCHANGE };      // Tipos de entrada na lista de eventos e escalonador (Entrada, Saída, Passagem)
 
 // Struct da fila
 typedef struct {
     uint64_t index;                                 // Número índice da fila
+    char *name;                                     // Nome da fila
     uint64_t num_servers;                           // Número de atendentes
     uint64_t capacity;                              // Capacidade da fila, dinâmica se infinita
     uint64_t customers;                             // Clientes na fila
@@ -19,9 +21,10 @@ typedef struct {
     double min_service;                             // Número mínimo da saída
     double max_service;                             // Número máximo da saída
     dynbuffer(double) times;                        // Buffer dinâmico de tempos acumulados para cada estado da fila
-    dynbuffer(double) exit_odds;                    // Buffer dinâmico de probabilidades para cada saída
-    dynbuffer(int) exit_to;                         // Buffer dinâmico de destinos possíveis
+    dynarray(double) exit_odds;                     // Array dinâmica de probabilidades para cada saída
+    dynarray(int) exit_to;                          // Array dinâmica de destinos possíveis
     bool b_infinite_capacity;                       // Indica se a fila é infinita
+    bool b_arrival;                                 // Indica que a fila recebe unidades de fora
 } queue;
 
 // Struct do evento
@@ -37,5 +40,12 @@ typedef struct {                                    // Struct de entradas da lis
     bool b_removed;                                 // Boolean para indicar se já foi utilizado e removido
     bool b_loss;                                    // Boolean para indicar se houve uma perda de unidade neste evento
 } event_entry;
+
+typedef struct
+{
+    char *name;
+    double first_arrival;
+} queue_parameters;
+
 
 #endif

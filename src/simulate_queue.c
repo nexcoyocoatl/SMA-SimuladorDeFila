@@ -38,9 +38,9 @@ void add_to_scheduler(enum EntryType type, queue *q)
     
     if (DEBUG)
     {
-        dynbuffer_init_n(&(new_event->queue_sizes), num_queues);
-        dynbuffer_init_n(&(new_event->queue_states), num_queues);
-        for (uint64_t i = 0; i < num_queues; i++)
+        dynbuffer_init_n(&(new_event->queue_sizes), dynarray_size(&queues));
+        dynbuffer_init_n(&(new_event->queue_states), dynarray_size(&queues));
+        for (uint64_t i = 0; i < dynarray_size(&queues); i++)
         {
             dynbuffer_init_n(&(new_event->queue_states[i]), queues[i].capacity+1);
         }
@@ -52,7 +52,7 @@ void add_to_scheduler(enum EntryType type, queue *q)
 // Acrescenta tempo às filas globais e atualiza filas do evento em execução
 void update_event_queues(event_entry *event, double added_time)
 {
-    for (uint64_t i = 0; i < num_queues; i++)
+    for (uint64_t i = 0; i < dynarray_size(&queues); i++)
     {
         // Verifica se o buffer de queue_states é grande o suficiente
         uint64_t current_queue_states = queues[i].capacity + 1;
@@ -89,7 +89,7 @@ void arrival(uint64_t event_index)
     double added_time = current_time - previous_time;
 
     // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    for (uint64_t i = 0; i < num_queues; i++)
+    for (uint64_t i = 0; i < dynarray_size(&queues); i++)
     {
         queues[i].times[queues[i].customers] += added_time;
     }
@@ -154,7 +154,7 @@ void service(uint64_t event_index)
     double added_time = current_time - previous_time;
 
     // Acrescenta o tempo no estado atual de cada fila e atualiza no tempo global
-    for (uint64_t i = 0; i < num_queues; i++)
+    for (uint64_t i = 0; i < dynarray_size(&queues); i++)
     {
         queues[i].times[queues[i].customers] += added_time;
     }
@@ -187,10 +187,10 @@ void calculate_service_outcome(uint64_t event_index)
     // Gera um número aleatório
     double rng = calculate_draw(0,1);
     double sum = 0.0;
-    int exit_index = -2;
+    int exit_index = -1; // TODO: Verificar se funciona
 
     // Verifica em qual das possibilidades de saída o número gerado cai
-    for (uint64_t i = 0; i < dynbuffer_capacity(&(queue_from->exit_odds)); i++)
+    for (uint64_t i = 0; i < dynarray_size(&(queue_from->exit_odds)); i++)
     {
         sum += queue_from->exit_odds[i];
         if (rng <= sum)
@@ -263,7 +263,7 @@ void print_chronological_entry(event_entry *entry) {
         }
         printf("| Time: %f\n", entry->time);
     
-    for (uint64_t i = 0; i < num_queues; i++) {
+    for (uint64_t i = 0; i < dynarray_size(&queues); i++) {
         printf("  Queue %lu: Size = %lu\n", i, entry->queue_sizes[i]);
         // Only print states that actually have time accumulated to save space
         printf("  States: ");
@@ -330,7 +330,7 @@ void print_scheduled_entry(event_entry *entry)
 // Imprime estados das filas e porcentagem
 void print_queue_state_percentage_calc(void)
 {
-    for (uint64_t i = 0; i < num_queues; i++)
+    for (uint64_t i = 0; i < dynarray_size(&queues); i++)
     {
         printf("Queue %lu:\n", i+1);
 

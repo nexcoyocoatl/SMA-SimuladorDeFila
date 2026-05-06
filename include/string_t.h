@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct {
     char *data;
@@ -30,7 +31,7 @@ void string_trim(string_t *s);
 void string_clear(string_t *s_t);
 void string_free(string_t *s_t);
 void string_printf(string_t *s_t, const char *format, ...);
-string_t *string_split(const string_t *s_t, const char *delim, int *count);
+string_t *string_split(const string_t *s_t, const char *delim, uint64_t *count);
 int string_get_line(string_t *s_t, FILE *f);
 
 // Creates a string_t
@@ -43,7 +44,7 @@ int string_get_line(string_t *s_t, FILE *f);
 do { \
     if (ARRAY) \
     { \
-        for (int _i = 0; _i < COUNT; _i++) \
+        for (uint64_t _i = 0; _i < COUNT; _i++) \
         { \
             string_free(&(ARRAY)[_i]); \
         } \

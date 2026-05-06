@@ -1,5 +1,6 @@
 #include "string_t.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -187,7 +188,7 @@ void string_printf(string_t *s_t, const char *format, ...)
     s_t->size = (uint64_t)needed;
 }
 
-string_t *string_split(const string_t *s_t, const char *delim, int *count)
+string_t *string_split(const string_t *s_t, const char *delim, uint64_t *count)
 {
     // Create a copy because strtok is destructive
     char *temp_str = malloc(s_t->size + 1);
@@ -200,7 +201,7 @@ string_t *string_split(const string_t *s_t, const char *delim, int *count)
     memcpy(temp_str, s_t->data, s_t->size + 1);
         
     // Count tokens first to malloc the right amount of string_t objects
-    int n = 0;
+    uint64_t n = 0;
     char *token = strtok(temp_str, delim);
     while (token)
     {
@@ -269,7 +270,10 @@ int string_get_line(string_t *s_t, FILE *f)
         // Check for newline
         if (s_t->data[s_t->size - 1] == '\n')
         {
-            s_t->data[--s_t->size] = '\0'; // Strip newline
+            s_t->data[--s_t->size] = '\0';
+            // Also strip \r for Windows line endings
+            if (s_t->size > 0 && s_t->data[s_t->size - 1] == '\r')
+                s_t->data[--s_t->size] = '\0';
             break;
         }
 
