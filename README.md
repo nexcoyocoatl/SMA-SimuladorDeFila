@@ -6,7 +6,7 @@ Testado apenas em Linux e Windows.
 Parâmetros do arquivo de configuração:  
 arrivals -> Fila(s) das quais chegam as unidades, com um determinado tempo na simulação  
 queues -> Parâmetros das filas (servers, capacity, minArrival, maxArrival, minService, maxService). Caso não exista o parâmetro capacity, a fila será infinita.  
-network -> Cria as rotas entre filas durante atendimento e consequente saída, com as probabilidades para cada rota determinadas por número aleatório.  
+network -> Cria as rotas entre filas durante atendimento e consequente saída, com as probabilidades para cada rota que será determinado por geração de número aleatório.  
 maxrndnumbers -> Determina número máximo de geração de números aleatórios até que seja finalizada a simulação.  
   
 Exemplo do arquivo de configuração de filas:  
