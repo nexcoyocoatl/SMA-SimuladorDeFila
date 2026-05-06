@@ -4,13 +4,13 @@ Caso não exista o arquivo de config model.yml, será criado um padrão para rod
 Testado apenas em Linux e Windows.  
   
 Parâmetros do arquivo de configuração:  
-arrivals -> Fila(s) das quais chegam as unidades, com um determinado tempo na simulação
+arrivals -> Fila(s) das quais chegam as unidades, com um determinado tempo na simulação  
 queues -> Parâmetros das filas (servers, capacity, minArrival, maxArrival, minService, maxService). Caso não exista o parâmetro capacity, a fila será infinita.  
 network -> Cria as rotas entre filas durante atendimento e consequente saída, com as probabilidades para cada rota determinadas por número aleatório.  
 maxrndnumbers -> Determina número máximo de geração de números aleatórios até que seja finalizada a simulação.  
   
 Exemplo do arquivo de configuração de filas:  
-arrivals:  
+```arrivals:  
    Q1: 2.0  
   
 queues:  
@@ -48,4 +48,4 @@ network:
    target: Q3  
    probability: 0.7  
   
-maxrndnumbers: 100000  
+maxrndnumbers: 100000```  
