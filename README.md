@@ -10,7 +10,8 @@ network -> Cria as rotas entre filas durante atendimento e consequente saída, c
 maxrndnumbers -> Determina número máximo de geração de números aleatórios até que seja finalizada a simulação.  
   
 Exemplo do arquivo de configuração de filas:  
-```arrivals:  
+```
+arrivals:  
    Q1: 2.0  
   
 queues:  
@@ -49,4 +50,4 @@ network:
    probability: 0.7  
   
 maxrndnumbers: 100000
-
+```
