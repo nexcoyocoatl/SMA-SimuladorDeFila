@@ -1,6 +1,6 @@
 Para compilação, é necessário ter instalado Make e o compilador GCC.  
 Execute o comando "make" para compilar e "./simulate_queue <nome_do_arquivo_de_config.yml>" para rodar. "simulate_queue.exe <nome_do_arquivo_de_config.yml>" no Windows.  
-Caso não exista o arquivo de config model.yml, será criado um padrão para rodar o programa, baseado no T1. Caso seja enviado um parâmetro de um arquivo que não exista, também cria o arquivo padrão e o utiliza.  
+Caso não seja enviado um parâmetro e não exista o arquivo de config model.yml, será criado um padrão para rodar o programa, baseado no T1. Caso seja enviado um parâmetro de um arquivo que não exista, também cria o arquivo padrão e o utiliza.  
 Testado apenas em Linux e Windows.  
   
 Parâmetros do arquivo de configuração:  
