@@ -48,5 +48,5 @@ network:
    target: Q3  
    probability: 0.7  
   
-maxrndnumbers: 100000```
+maxrndnumbers: 100000
 
